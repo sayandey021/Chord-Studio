@@ -4,7 +4,6 @@
 
 **Modern, Hardware-Accelerated Guitar Tablature, Chords & AI Audio Studio**
 
-[![Microsoft Store](https://img.shields.io/badge/Microsoft_Store-9P71JGK9JB2Q-0078D4.svg?style=flat-square&logo=microsoft)](https://apps.microsoft.com/detail/9P71JGK9JB2Q)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.0.0-purple.svg?style=flat-square&logo=kotlin)](https://kotlinlang.org)
 [![Compose Multiplatform](https://img.shields.io/badge/Compose_Multiplatform-1.7.3-4285F4.svg?style=flat-square&logo=jetpackcompose)](https://www.jetbrains.com/lp/compose-multiplatform/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-blue.svg?style=flat-square)](#)
