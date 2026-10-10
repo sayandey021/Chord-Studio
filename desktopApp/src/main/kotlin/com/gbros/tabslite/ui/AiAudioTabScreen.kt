@@ -1667,15 +1667,21 @@ fun StudioWaveformTimeline(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 5.dp)
                             ) {
-                                Icon(Icons.Default.Mic, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(13.dp))
-                                Spacer(Modifier.width(6.dp))
+                                Icon(
+                                    imageVector = Icons.Default.Mic,
+                                    contentDescription = null,
+                                    tint = Color(0xFF38BDF8),
+                                    modifier = Modifier.size(14.dp).offset(y = 0.5.dp)
+                                )
+                                Spacer(Modifier.width(7.dp))
                                 Text(
                                     text = currentLine.text,
-                                    fontSize = 12.sp,
+                                    fontSize = 12.5.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = Color(0xFFF1F5F9),
                                     maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.offset(y = (-1.5).dp)
                                 )
                             }
                         }
@@ -3518,8 +3524,23 @@ fun StudioLyricsModal(
                                                 Spacer(Modifier.width(6.dp))
                                                 Text("${syncedLyrics.size} time-synced lyric lines active", fontSize = 11.5.sp, color = ColorAccentBlue)
                                             }
-                                            TextButton(onClick = { activeTab = "SYNCED" }, modifier = Modifier.height(28.dp)) {
-                                                Text("View Live Karaoke", fontSize = 11.sp, color = ColorAccentBlue)
+                                            Surface(
+                                                onClick = { activeTab = "SYNCED" },
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = ColorAccentBlue.copy(alpha = 0.15f),
+                                                border = BorderStroke(1.dp, ColorAccentBlue.copy(alpha = 0.40f))
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = "View Live Karaoke",
+                                                        fontSize = 11.5.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = ColorAccentBlue
+                                                    )
+                                                }
                                             }
                                         }
                                     }
