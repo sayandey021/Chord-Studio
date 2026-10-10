@@ -1,0 +1,7 @@
+theme: minima
+title: Chord Studio
+description: Modern Cross-Platform Guitar Tablature, Chords & AI Audio Studio
+include: [".well-known"]
+header_pages:
+  - Acknowledgements.md
+  - Privacy.md

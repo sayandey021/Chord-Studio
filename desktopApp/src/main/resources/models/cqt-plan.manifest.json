@@ -1,0 +1,77 @@
+{
+  "formatVersion": 1,
+  "generator": "librosa==0.11.0;numpy==2.4.6;scipy==1.16.3;resampler=kaiser-lowpass-255-cutoff-0.48-beta-12",
+  "payloadSha256": "9e233a7935aefc8172b3cead5bea8cbd1379c3f67066de7c8d59137cbc9bba94",
+  "artifactSha256": "c31f0a6fd2d582d753be6628b5daecdee58acba53cba93b2bc2b5c75dee2ba48",
+  "config": {
+    "sampleRate": 22050.0,
+    "hopLength": 2048,
+    "fmin": 32.70319566257483,
+    "nBins": 144,
+    "binsPerOctave": 24,
+    "output": "logMagnitude"
+  },
+  "earlyDownsampleCount": 1,
+  "octaveCount": 6,
+  "coefficientCount": 1818,
+  "downsampleTapCount": 255,
+  "downsample": {
+    "algorithm": "kaiser-lowpass-fir",
+    "cutoff": 0.48,
+    "kaiserBeta": 12,
+    "gain": 1.4142135623730951,
+    "delay": 127,
+    "boundary": "constant",
+    "outputLength": "ceil(input/2)"
+  },
+  "octaves": [
+    {
+      "index": 0,
+      "sampleRate": 11025.0,
+      "hopLength": 1024,
+      "fftSize": 512,
+      "binStart": 120,
+      "binCount": 24
+    },
+    {
+      "index": 1,
+      "sampleRate": 5512.5,
+      "hopLength": 512,
+      "fftSize": 512,
+      "binStart": 96,
+      "binCount": 24
+    },
+    {
+      "index": 2,
+      "sampleRate": 2756.25,
+      "hopLength": 256,
+      "fftSize": 512,
+      "binStart": 72,
+      "binCount": 24
+    },
+    {
+      "index": 3,
+      "sampleRate": 1378.125,
+      "hopLength": 128,
+      "fftSize": 512,
+      "binStart": 48,
+      "binCount": 24
+    },
+    {
+      "index": 4,
+      "sampleRate": 689.0625,
+      "hopLength": 64,
+      "fftSize": 512,
+      "binStart": 24,
+      "binCount": 24
+    },
+    {
+      "index": 5,
+      "sampleRate": 344.53125,
+      "hopLength": 32,
+      "fftSize": 512,
+      "binStart": 0,
+      "binCount": 24
+    }
+  ]
+}

@@ -1,0 +1,150 @@
+# ====================================================================
+# Chord Studio - Git Ignore Configuration
+# ====================================================================
+
+# --------------------------------------------------------------------
+# Gradle & Build Artifacts
+# --------------------------------------------------------------------
+.gradle/
+build/
+*/build/
+**/build/
+bin/
+out/
+app/build/
+desktopApp/build/
+
+# Gradle Daemon / Logs / Wrapper cache
+.gradle-build/
+*.gradle.cache
+
+# --------------------------------------------------------------------
+# Kotlin & Compose Multiplatform
+# --------------------------------------------------------------------
+.kotlin/
+*.class
+*.klib
+*.jar
+*.war
+*.ear
+
+# Native & Distributable binaries created during packaging
+*.exe
+*.msi
+*.msix
+*.appx
+*.dmg
+*.pkg
+*.deb
+*.rpm
+*.zip
+*.tar.gz
+
+# --------------------------------------------------------------------
+# Android Studio / IntelliJ IDEA / JetBrains IDEs
+# --------------------------------------------------------------------
+.idea/
+*.iml
+*.ipr
+*.iws
+.fleet/
+captures/
+.externalNativeBuild/
+.cxx/
+local.properties
+.navigation/
+
+# --------------------------------------------------------------------
+# Visual Studio Code / Editors
+# --------------------------------------------------------------------
+.vscode/
+*.code-workspace
+*.swp
+*.swo
+*~
+*.bak
+
+# --------------------------------------------------------------------
+# Python & Virtual Environments (Whisper Transcription)
+# --------------------------------------------------------------------
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.pytest_cache/
+*.mypy_cache/
+*.ruff_cache/
+.coverage
+htmlcov/
+dist/
+*.egg-info/
+.eggs/
+
+# --------------------------------------------------------------------
+# Temporary Audio & Model Downloads / Processing Caches
+# --------------------------------------------------------------------
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.ogg
+*.aac
+*.tmp
+*.temp
+whisper_output/
+staging/
+
+# --------------------------------------------------------------------
+# OS Generated Files
+# --------------------------------------------------------------------
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msm
+*.msp
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# --------------------------------------------------------------------
+# Logs, Dumps & Secrets
+# --------------------------------------------------------------------
+*.log
+*.dmp
+*.stackdump
+*.orig
+*.rej
+.env
+.env.*
+!.env.example
+secrets.properties
+*.jks
+*.keystore
+*.p12
+*.key

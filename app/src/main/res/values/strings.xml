@@ -1,0 +1,142 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Resources that do not require translation -->
+    <string name="app_name" translatable="false">Chord Studio</string>
+
+    <!-- Translatable resources -->
+    <string name="app_about" translation_description="A brief description of the app, for use in the About dialog." tools:ignore="TypographyOther">Chord Studio is a free, open source guitar tablature and chords app with over a million songs available. Built for speed and simplicity, 100% free with no ads.</string>
+    <string name="app_action_export_playlists" translation_description="The button text to export playlists">Export favorites and playlists</string>
+    <string name="app_action_import_playlists" translation_description="The button text to export playlists">Import favorites and playlists</string>
+    <string name="app_action_leave_review" translation_description="The button text to leave a review">Leave review</string>
+    <string name="app_action_donate" translation_description="The button text to donate to Chord Studio">Donate</string>
+    <string name="app_action_search" translation_description="The placeholder text for the search bar">Search Chord Studio</string>
+
+    <string name="app_action_description_search" translation_description="The accessibility text for the Search action">Search</string>
+    <string name="app_action_description_create_playlist" translation_description="Accessibility text for Create Playlist button">New playlist</string>
+    <string name="app_icon_description_half_star" translation_description="Accessibility text for a half star icon">Half star</string>
+    <string name="app_icon_description_filled_star" translation_description="Accessibility text for a full star icon">Filled star</string>
+
+    <string name="theme_selection_system" translation_description="Title of the theme option that means use dark mode when the phone is set to dark mode, and light when the phone is set to light mode. This is the default theme option.">Use system</string>
+    <string name="theme_selection_light" translation_description="Title of the theme option that means use light mode regardless of system setting.">Force light</string>
+    <string name="theme_selection_dark" translation_description="Title of the theme option that means use dark mode regardless of system setting.">Force dark</string>
+    <string name="theme_selection_title" translation_description="Label shown next to the theme selection dropdown">Theming</string>
+
+    <string name="font_style_selection_mono" translation_description="Title of the font style option that means use a monospace font.">Monospace</string>
+    <string name="font_style_selection_modern" translation_description="Title of the font style option that means use a modern font.">Modern</string>
+    <string name="font_style_selection_title" translation_description="Label shown next to the font style selection dropdown">Font style</string>
+
+    <string name="title_favorites_playlist" translation_description="The title of the Favorites playlist/home tab">Favorites</string>
+    <string name="title_popular_playlist" translation_description="The title of the Popular playlist/home tab">Popular</string>
+    <string name="title_playlists_page" translation_description="The title of the Playlists home tab">Playlists</string>
+    <string name="title_add_to_playlist_dialog" translation_description="The title of the Add To Playlist dialog">Add to playlist</string>
+    <string name="title_create_playlist_dialog" translation_description="Title for the Create Playlist dialog">Create playlist</string>
+    <string name="title_create_song" translation_description="Title for the Create Song screen">Create Song</string>
+
+    <string name="placeholder_playlist_title" translation_description="Placeholder text for Playlist Title entry field">Playlist Title</string>
+    <string name="placeholder_playlist_description" translation_description="Placeholder text for Playlist Description entry field">Playlist Description</string>
+    <string name="playlist_empty_description" translation_description="The description shown on the playlist screen for an empty playlist with no songs added">Add songs to your playlist by finding the song you\'d like and selecting the three dot menu at the top right of the screen.</string>
+    <string name="select_playlist_dialog_no_selection" translation_description="The playlist text shown when there's no playlist selected in the Add To Playlist dialog. This can happen when no playlists have been created yet.">Select a playlist…</string>
+    <string name="empty_favorites" translation_description="The text shown on the Favorites page when no songs have been favorited">Select the heart icon on any song to save it offline in this list.</string>
+    <string name="empty_popular" translation_description="The text shown on the Popular page when no popular songs have been loaded from the internet (yet).">Today\'s popular songs will load when you\'re connected to the internet.</string>
+
+    <string name="generic_action_close">Close</string>
+    <string name="generic_action_confirm">Confirm</string>
+    <string name="generic_action_dismiss">Dismiss</string>
+    <string name="generic_action_back">Back</string>
+    <string name="generic_action_next">Next</string>
+    <string name="generic_action_delete">Delete</string>
+    <string name="generic_action_drag_to_reorder">Drag to reorder</string>
+    <string name="generic_action_play">Play</string>
+    <string name="generic_action_pause">Pause</string>
+    <string name="generic_action_share">Share</string>
+    <string name="generic_action_more">More</string>
+    <string name="generic_action_reload">Reload</string>
+    <string name="generic_action_menu">Menu</string>
+    <string name="generic_action_copy">Copy</string>
+    <string name="generic_action_export_to_pdf">Export to PDF</string>
+    <string name="generic_action_clear">Clear</string>
+    <string name="generic_action_preview">Preview</string>
+    <string name="generic_action_continue">Continue</string>
+    <string name="error">Error</string>
+    <string name="info">Info</string>
+
+    <string name="instrument_title_guitar">Guitar</string>
+    <string name="instrument_title_ukulele">Ukulele</string>
+    <string name="instrument_title_banjo">Banjo</string>
+    <string name="instrument_title_piano">Piano</string>
+
+    <string name="capo_zero" translation_description="The capo text used when the capo is not used">None</string>
+    <string name="capo_11" translation_description="The capo text used when the capo is 11">%sth Fret</string>
+    <string name="capo_12" translation_description="The capo text used when the capo is 12">%sth Fret</string>
+    <string name="capo_13" translation_description="The capo text used when the capo is 13">%sth Fret</string>
+    <string name="capo_number_ending_in_1" translation_description="The capo text when the capo is a number ending in 1 (except for 11)">%sst Fret</string>
+    <string name="capo_number_ending_in_2" translation_description="The capo text when the capo is a number ending in 2 (except for 12)">%snd Fret</string>
+    <string name="capo_number_ending_in_3" translation_description="The capo text when the capo is a number ending in 3 (except for 13)">%srd Fret</string>
+    <string name="capo_generic" translation_description="The capo text when the capo doesn't meet any of the other criteria">%sth Fret</string>
+
+    <string name="sort_by" translation_description="Formatted string used in conjunction with the following options to display a button to choose what order songs should be sorted by. %s represents one of the options below (e.g. Date Added)">Sort by: %s</string>
+    <string name="sort_by_date_added" translation_description="Used to pick what order to show songs and playlists in - most recent first">Date Added</string>
+    <string name="sort_by_popularity" translation_description="Used to pick what order to show songs in - most popular first">Popularity</string>
+    <string name="sort_by_date_modified" translation_description="Used to pick what order to show playlists in - most recently modified first">Date Modified</string>
+    <string name="sort_by_artist_name" translation_description="Used to pick what order to show songs in - artist name, a to z">Artist Name</string>
+    <string name="sort_by_title" translation_description="Used to pick what order to show songs and playlists in - song title, a to z">Title</string>
+
+    <string name="message_chord_load_failed" translation_description="Error message shown when chord could not be loaded. %s represents the name of the chord that couldn\'t be loaded">Couldn\'t load chord \'%s\'. Please check your internet connection.</string>
+    <string name="message_no_search_results" translation_description="Info message shown when there are no results to a search query. This could be due to an internet connection issue.">No search results. Revise your query or check your internet connection.</string>
+    <string name="message_empty_list" translation_description="Default info message when there are no items in a list">Nothing here!</string>
+    <string name="message_tab_load_unexpected_error" translation_description="Error message shown when a tab couldn\'t be loaded and an unexpected error occurred. %s represents the error message returned by the system.">Unexpected error loading tab: %s</string>
+    <string name="message_tab_load_from_playlist_unexpected_error" translation_description="Error message shown when we're trying to load a tab from a playlist and an unexpected error occurs.">Unexpected error loading tab from playlist.</string>
+    <string name="message_tab_load_no_internet" translation_description="Error message shown when we couldn\'t load a tab due to being disconnected from the internet.">No internet access. This tab is not yet saved offline. Please reconnect to the internet and try again.</string>
+    <string name="message_tab_not_found" translation_description="Error message when loading the selected tab from the internet returns a NOT FOUND result. This shouldn\'t happen, so the user is directed to report the issue to the developer.">Tab not found. Please report this issue to the developer.</string>
+    <string name="message_tab_playlist_entry_not_found" translation_description="Error message when loading the selected tab (in a playlist) from the internet returns a NOT FOUND result. This shouldn\'t happen, so the user is directed to report the issue to the developer.">Playlist entry not found. Please report this issue to the developer.</string>
+    <string name="message_tab_unavailable_for_legal_reasons" translation_description="Error message shown when a tab is unavailable for legal reasons (e.g. a copyright takedown). It may still appear in search results, but the tab itself is not available.">This tab has been taken down and is no longer available. This may occur when the copyright holder requests that it be removed.</string>
+    <string name="message_playlist_import_export_unexpected_error" translation_description="Error message shown when an import or export operation failed">Unexpected error importing/exporting playlists. Please report this to the developer.</string>
+    <string name="message_playlist_import_delayed_internet_access" translation_description="Informational message shown when playlists have been imported but no internet connection is available to complete the download. The full operation will be completed the next time the app starts up while connected to the internet.">No internet connection. Playlist tabs have been added, but won\'t be downloaded until next time you restart the app with internet access.</string>
+    <string name="message_search_no_internet" translation_description="Error message shown when a search is attempted with no internet connection">You\'re not connected to the internet.</string>
+    <string name="message_search_timeout" translation_description="Error message shown when a search times out prior to completion">Timeout while waiting for search results.</string>
+    <string name="message_search_unexpected_error" translation_description="Error message shown when a search fails with an unexpected problem">Unexpected error loading search results.</string>
+    <string name="message_search_suggestion_no_internet" translation_description="Informational message displayed when additional search suggestions can't be fetched because we're not connected to the internet.">You\'re not connected to the internet.</string>
+    <string name="message_search_suggestion_unexpected_error" translation_description="Error message displayed when additional search suggestions can't be loaded because of an unknown/unexpected issue.">Unexpected error fetching more search suggestions.</string>
+
+    <!-- tab creation -->
+    <string name="label_song_genre">Song Genre</string>
+    <string name="action_create_song_and_continue">Create Song and Continue</string>
+    <string name="message_song_creation_success_title" translation_description="The title of the success dialog shown when a song was successfully created">Song created!</string>
+    <string name="message_song_creation_success_description" translation_description="The body of the success dialog shown when a song was successfully created">Song created successfully. Continue to create the first tab for this song.</string>
+    <string name="message_song_creation_failed_title" translation_description="Error message displayed when a song couldn't be created due to unfilled required fields">Couldn\'t create song</string>
+    <string name="label_create_song_genre" translation_description="The label for the Genre field when creating a new song">Genre</string>
+    <string name="message_artist_name_not_found" translation_description="Warning message displayed when creating a new song and the user enters an artist name that doesn't exist yet">Are you sure about that? We couldn\'t find a matching artist. This field is case sensitive!</string>
+    <string name="action_create_artist" translation_description="Button text for the override button to allow the user to create a brand new artist if they entered an artist name that doesn't exist yet">Create a brand new artist</string>
+    <string name="message_error_fetching_artist_id" translation_description="Error message displayed when an unexpected error occurs during artist name validation.">Whoops! Not sure what happened there... Please send a screenshot of this message to the developer: %s</string>
+    <string name="message_error_creating_artist" translation_description="Error message displayed when an unexpected error occurs while creating a new artist.">Couldn\'t create that new artist: %s</string>
+    <string name="message_error_creating_song" translation_description="Error message displayed when an error occurs while creating a song">Couldn\'t create song. %s</string>
+    <string name="message_tab_creation_failed_title" translation_description="Error message displayed when a tab couldn't be created due to unfilled required fields">Couldn\'t create tab</string>
+    <string name="message_tab_creation_failed_missing_arguments" translation_description="Error message displayed when a tab couldn't be created due to unfilled required fields">Couldn\'t create tab. Please fill all required fields.</string>
+    <string name="message_tab_creation_failed" translation_description="Error message displayed when a tab couldn't be created due to unknown or other reasons. %s represents the error message returned by the system.">Couldn\'t create tab. %s</string>
+    <string name="message_prefilling_tab_failed" translation_description="Error message displayed in the tab creation screen when the tab content couldn't be prefilled from the tab ID (e.g. if the user clicked Edit Tab from the tab view, but the tab content couldn't be fetched for some reason). %s represents the error message returned by the system.">Couldn\'t prefill tab. %s</string>
+    <string name="message_tab_creation_success_title" translation_description="The title of the success dialog shown when a tab was successfully created">Tab created!</string>
+    <string name="message_tab_creation_success_description" translation_description="The body of the success dialog shown when a tab was successfully created">Your tab has been created and added to your favorites. It won\'t be visible in search until moderators approve it, so don\'t remove it from your favorites or you won\'t be able to find it again.</string>
+    <string name="action_navigate_to_new_tab" translation_description="The text of the action button of the success dialog when a new tab is successfully created, that navigates the user to the new tab">Check it out</string>
+    <string name="action_create_tab" translation_description="The text of the action button of create-tab page to submit the created tab">Save tab</string>
+    <string name="action_insert_chord" translation_description="The text of the button used to insert a chord into a tab while creating a new tab">Insert</string>
+    <string name="label_create_tab_content" translation_description="The label for the Content field when creating a new tab">Tab Content</string>
+    <string name="label_create_tab_chord" translation_description="The label for the Chord field to specify a chord to insert when creating a new tab">Chord</string>
+    <string name="label_create_tab_song_name" translation_description="The label for the Song Name field when creating a new tab">Song Name</string>
+    <string name="label_create_tab_artist_name" translation_description="The label for the Artist Name field when creating a new tab">Artist Name</string>
+    <string name="label_create_tab_version_description" translation_description="The label for the Version Description field when creating a new tab">Version Description</string>
+    <string name="label_create_tab_difficulty" translation_description="The label for the Difficulty field when creating a new tab">Difficulty</string>
+    <string name="label_create_tab_tuning" translation_description="The label for the Tuning field when creating a new tab">Tuning</string>
+    <string name="label_create_tab_capo" translation_description="The label for the Capo field when creating a new tab">Capo</string>
+
+    <string name="tab_title"><annotation arg="songName">%1$s</annotation><annotation arg="plainText"> by </annotation><annotation arg="artistName">%2$s</annotation></string>
+    <string name="tab_difficulty">Difficulty: %s</string>
+    <string name="tab_tuning">Tuning: %s</string>
+    <string name="tab_capo">Capo: %s</string>
+    <string name="tab_key">Key: %s</string>
+    <string name="tab_author">Tab Author: %s</string>
+    <string name="tab_transpose">Transpose: %d</string>
+    <string name="tab_version_number">Version %d</string>
+    <string name="tab_version_abbreviation" translation_description="Shortened version number for display in places where space is limited (like in search results)">ver. %s</string>
+    <string name="tab_favorite_button_accessibility_text" translation_description="Accessibility text used for the favorite button">Favorite</string>
+    <string name="action_edit_tab">Edit tab</string>
+
+</resources>

@@ -1,0 +1,169 @@
+package com.gbros.tabslite.data.tab
+
+import android.os.Parcelable
+import androidx.room.ColumnInfo
+import com.gbros.tabslite.data.DataAccess
+import com.gbros.tabslite.data.playlist.DataPlaylistEntry
+import com.gbros.tabslite.data.playlist.IDataPlaylistEntry
+import com.gbros.tabslite.data.playlist.Playlist
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.parcelize.Parcelize
+
+@Parcelize  // used for playlist reordering
+data class TabWithDataPlaylistEntry(
+    /**
+     * The ID of the playlist entry that represents this tab/playlist combo
+     */
+    @ColumnInfo(name = "entry_id") override var entryId: Int = -1,
+
+    /**
+     * The ID of the playlist that this tab/playlist combo belongs to
+     */
+    @ColumnInfo(name = "playlist_id") override var playlistId: Int = 0,
+
+    /**
+     * The ID of the tab in this tab/playlist combo
+     */
+    @ColumnInfo(name = "tab_id") override var tabId: String = "",
+
+    /**
+     * The next entry in this playlist (if one exists, else null)
+     */
+    @ColumnInfo(name = "next_entry_id") override var nextEntryId: Int? = null,
+
+    /**
+     * The previous entry in this playlist (if one exists, else null)
+     */
+    @ColumnInfo(name = "prev_entry_id") override var prevEntryId: Int? = null,
+
+    @ColumnInfo(name = "date_added") override var dateAdded: Long = 0,
+    @ColumnInfo(name = "song_id") override var songId: String = "",
+    @ColumnInfo(name = "song_name") override var songName: String = "",
+    @ColumnInfo(name = "song_genre") override var songGenre: String = "",
+    @ColumnInfo(name = "artist_name") override var artistName: String = "",
+    @ColumnInfo(name = "artist_id") override var artistId: String = "",
+    @ColumnInfo(name = "verified") override var isVerified: Boolean = false,
+    @ColumnInfo(name = "versions_count") override var versionsCount: Int = 0,
+    @ColumnInfo(name = "type") override var type: String = "",
+    @ColumnInfo(name = "part") override var part: String = "",
+    @ColumnInfo(name = "version") override var version: Int = 0,
+    @ColumnInfo(name = "votes") override var votes: Int = 0,
+    @ColumnInfo(name = "rating") override var rating: Double = 0.0,
+    @ColumnInfo(name = "date") override var date: Long = 0,
+    @ColumnInfo(name = "status") override var status: String = "",
+    @ColumnInfo(name = "tab_access_type") override var tabAccessType: String = "",
+    @ColumnInfo(name = "tonality_name") override var tonalityName: String = "",
+    @ColumnInfo(name = "version_description") override var versionDescription: String = "",
+    @ColumnInfo(name = "is_tab_ml") override var isTabMl: Boolean = false,
+
+    @ColumnInfo(name = "recommended") override var recommended: ArrayList<String> = ArrayList(0),
+    @ColumnInfo(name = "difficulty") override var difficulty: String = "novice",
+    @ColumnInfo(name = "tuning") override var tuning: String = "E A D G B E",
+    @ColumnInfo(name = "capo") override var capo: Int = 0,
+    @ColumnInfo(name = "contributor_user_id") override var contributorUserId: String = "0",
+    @ColumnInfo(name = "contributor_user_name") override var contributorUserName: String = "Unregistered",
+    @ColumnInfo(name = "content") override var content: String = "",
+
+    // columns from Playlist
+    @ColumnInfo(name = "user_created") var playlistUserCreated: Boolean? = true,
+    @ColumnInfo(name = "title") var playlistTitle: String? = "",
+    @ColumnInfo(name = "date_created") var playlistDateCreated: Long? = 0,
+    @ColumnInfo(name = "date_modified") var playlistDateModified: Long? = 0,
+    @ColumnInfo(name = "description") var playlistDescription: String? = "",
+    @ColumnInfo(name = "transpose") override var transpose: Int = 0
+) : ITab, IDataPlaylistEntry(tabId = tabId, transpose = 0, entryId = entryId, playlistId = playlistId, nextEntryId = nextEntryId, prevEntryId = prevEntryId, dateAdded = dateAdded), Parcelable {
+
+    /**
+     * Ensures that the full [TabWithDataPlaylistEntry] (not just the partial tab loaded in the search results) is stored
+     * in the local database.  Checks if [content] is empty, and if so triggers an API call to download
+     * the tab content from the internet and load it into the database.
+     *
+     * @param dataAccess: The database to load the updated tab into
+     * @param forceInternetFetch: If true, load from the internet regardless of whether we already have the tab.  If false, load only if [content] is empty
+     *
+     * @return this object, for joining calls together
+     */
+    override suspend fun load(dataAccess: DataAccess, forceInternetFetch: Boolean): TabWithDataPlaylistEntry {
+        // fetch playlist entry
+        val loadedPlaylistEntry = dataAccess.getEntryById(entryId)
+        if (loadedPlaylistEntry == null) {
+            throw NoSuchElementException("Attempted to load a playlist entry that could not be found in the database.")
+        } else {
+            set(loadedPlaylistEntry)
+        }
+
+        // fetch playlist
+        val loadedPlaylistDetail = dataAccess.getPlaylist(playlistId)
+        set(loadedPlaylistDetail)
+
+        // fetch tab
+        val loadedTab = Tab(tabId).load(dataAccess, forceInternetFetch)
+        set(loadedTab)
+        return this
+    }
+
+    //#region private methods
+
+    /**
+     * Set all variables of this playlist entry to match the provided [playlistEntry]
+     */
+    private fun set(playlistEntry: DataPlaylistEntry) {
+        playlistId = playlistEntry.playlistId
+        entryId = playlistEntry.entryId
+        nextEntryId = playlistEntry.nextEntryId
+        prevEntryId = playlistEntry.prevEntryId
+        tabId = playlistEntry.tabId
+        dateAdded = playlistEntry.dateAdded
+        transpose = playlistEntry.transpose
+    }
+
+    /**
+     * Set all variables of this playlist to match the provided [playlistDetail]
+     */
+    private fun set(playlistDetail: Playlist) {
+        playlistId = playlistDetail.playlistId
+        playlistTitle = playlistDetail.title
+        playlistDateCreated = playlistDetail.dateCreated
+        playlistDateModified = playlistDetail.dateModified
+        playlistDescription = playlistDetail.description
+        playlistUserCreated = playlistDetail.userCreated
+    }
+
+    /**
+     * Set all variables of this tab to match the provided [tab]
+     */
+    private fun set(tab: Tab) {
+        // tab metadata
+        tabId = tab.tabId
+        songId = tab.songId
+        songName = tab.songName
+        songGenre = tab.songGenre
+        artistName = tab.artistName
+        isVerified = tab.isVerified
+        versionsCount = tab.versionsCount
+        type = tab.type
+        part = tab.part
+        version = tab.version
+        versionDescription = tab.versionDescription
+        votes = tab.votes
+        rating = tab.rating
+        date = tab.date
+        status = tab.status
+        tabAccessType = tab.tabAccessType
+        difficulty = tab.difficulty
+        contributorUserId = tab.contributorUserId
+        contributorUserName = tab.contributorUserName
+        isTabMl = tab.isTabMl
+
+        // tab play data
+        tonalityName = tab.tonalityName
+        tuning = tab.tuning
+        capo = tab.capo
+        content = tab.content
+
+        recommended = tab.recommended
+    }
+
+    //#endregion
+
+}

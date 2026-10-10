@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:dist="http://schemas.android.com/apk/distribution"
+    android:targetSandboxVersion="2">
+
+    <dist:module dist:instant="false" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application
+        android:name=".TabsLiteApplication"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:allowBackup="true"
+        android:fullBackupOnly="true">
+        <activity
+            android:name=".HomeActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Design.NoActionBar">
+
+            <!-- Intent filter for opening app normally -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Intent filter for opening web links -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="tabslite.com" />
+            </intent-filter>
+        </activity>
+    
+    <!-- Required: set your sentry.io project identifier (DSN) -->
+    <meta-data android:name="io.sentry.dsn" android:value="https://48211cd414ea57566ed1f6fef06a7bc4@o4510925368393728.ingest.us.sentry.io/4510925369901056" />
+
+    <!-- enable automatic breadcrumbs for user interactions (clicks, swipes, scrolls) -->
+    <meta-data android:name="io.sentry.traces.user-interaction.enable" android:value="true" />
+    <!-- enable screenshot for crashes (could contain sensitive/PII data) -->
+    <meta-data android:name="io.sentry.attach-screenshot" android:value="true" />
+    <!-- enable view hierarchy for crashes -->
+    <meta-data android:name="io.sentry.attach-view-hierarchy" android:value="true" />
+
+    <!-- enable the performance API by setting a sample-rate, adjust in production env -->
+    <meta-data android:name="io.sentry.traces.sample-rate" android:value="1.0" />
+</application>
+
+</manifest>
