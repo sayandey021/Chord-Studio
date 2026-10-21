@@ -64,15 +64,15 @@ class KaavishAnalysisTest {
         println("Found whisper-cli: $cli")
         kotlin.test.assertNotNull(cli, "whisper-cli.exe must be found")
 
-        val model = LyricsExtractor.findWhisperModelFile("tiny")
+        val model = LyricsExtractor.findWhisperModelFile("base", fallbackToInstalled = true)
         println("Found model: $model")
-        kotlin.test.assertNotNull(model, "ggml-tiny.bin must be found")
+        kotlin.test.assertNotNull(model, "Whisper model file must be found")
 
         val samples = AudioAnalysisEngine.loadAudioFile(file, 16000f)
         val vocalSamples = samples.copyOfRange((20 * 16000).coerceAtMost(samples.size), (50 * 16000).coerceAtMost(samples.size))
         val res = LyricsExtractor.transcribeWithWhisperCpp(
             audioSamples = vocalSamples,
-            modelName = "tiny",
+            modelName = "base",
             language = "auto",
             onProgress = { println("Progress: $it") }
         )

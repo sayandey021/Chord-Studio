@@ -57,12 +57,31 @@ object OnnxChordModel {
         val isSilent: BooleanArray
     )
 
+    private var activeExecutionProvider: String = "CPU Multi-Core (${Runtime.getRuntime().availableProcessors()} Threads)"
+
+    fun getActiveExecutionProvider(): String = activeExecutionProvider
+
     init {
         try {
             loadModel()
         } catch (e: Throwable) {
             initError = e.message
             System.err.println("OnnxChordModel initialization warning: ${e.message}")
+        }
+    }
+
+    @Synchronized
+    fun reloadModel() {
+        try {
+            ortSession?.close()
+        } catch (ignored: Throwable) {}
+        ortSession = null
+        isInitialized = false
+        try {
+            loadModel()
+        } catch (e: Throwable) {
+            initError = e.message
+            System.err.println("OnnxChordModel reload error: ${e.message}")
         }
     }
 
@@ -80,12 +99,19 @@ object OnnxChordModel {
             setIntraOpNumThreads(Runtime.getRuntime().availableProcessors().coerceAtLeast(1))
         }
 
+        try {
+            sessionOpts.addCPU(true)
+        } catch (ignored: Throwable) {}
+        val cores = Runtime.getRuntime().availableProcessors()
+        activeExecutionProvider = "CPU Multi-Core ($cores Threads)"
+        println("OnnxChordModel: Initialized on multi-core CPU ($cores threads).")
+
         ortEnv = env
         ortSession = env.createSession(modelBytes, sessionOpts)
 
         initializeVocabulary()
         isInitialized = true
-        println("OnnxChordModel loaded successfully with BTC Bi-directional Transformer (170 classes).")
+        println("OnnxChordModel loaded successfully with BTC Bi-directional Transformer (170 classes) on $activeExecutionProvider.")
     }
 
     private fun initializeVocabulary() {
@@ -105,7 +131,7 @@ object OnnxChordModel {
 
     fun isAvailable(): Boolean = isInitialized && ortSession != null
 
-    fun getInitializationStatus(): String = if (isAvailable()) "ONNX BTC Transformer Ready" else "Unavailable: $initError"
+    fun getInitializationStatus(): String = if (isAvailable()) "ONNX BTC Transformer Ready ($activeExecutionProvider)" else "Unavailable: $initError"
 
     /**
      * Translates internal 170-class chord label into clean guitar tab chord symbols

@@ -64,7 +64,7 @@ compose.desktop {
                 TargetFormat.Rpm
             )
             packageName = "ChordStudio"
-            packageVersion = "0.8.0"
+            packageVersion = "0.9.2"
             description = "Chord Studio"
             copyright = "© 2026 SaayanSoft"
             vendor = "SaayanSoft"
@@ -76,7 +76,7 @@ compose.desktop {
                 iconFile.set(project.file("src/main/resources/icon.ico"))
                 dirChooser = true
                 perUserInstall = false
-                packageVersion = "0.8.0"
+                packageVersion = "0.9.2"
             }
 
             macOS {

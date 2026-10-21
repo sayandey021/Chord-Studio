@@ -8,7 +8,7 @@
   <Identity
     Name="Saayan.ChordStudio"
     Publisher="CN=37E2AF47-D2FC-489C-BDC1-02C989A7B989"
-    Version="0.8.0.0"
+    Version="0.9.2.0"
     ProcessorArchitecture="x64" />
 
   <Properties>

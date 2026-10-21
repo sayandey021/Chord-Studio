@@ -11,6 +11,7 @@ echo   run_desktop.bat --recompile  Recompile binary and launch
 echo   run_desktop.bat --build      Rebuild standalone exe only
 echo   run_desktop.bat --msix       Build Microsoft Store MSIX package
 echo   run_desktop.bat --dev        Run via Gradle in dev mode
+echo   run_desktop.bat --version    Update version everywhere (app and installer)
 echo   run_desktop.bat --help       Show this help message
 echo ===================================================
 
@@ -28,6 +29,10 @@ taskkill /F /IM ChordStudio.exe >nul 2>&1
 if "%1"=="--help" goto show_help
 if "%1"=="-h" goto show_help
 if "%1"=="help" goto show_help
+if "%1"=="--version" goto set_version
+if "%1"=="-v" goto set_version
+if "%1"=="--set-version" goto set_version
+if "%1"=="version" goto set_version
 if "%1"=="--recompile" goto recompile_and_launch
 if "%1"=="-r" goto recompile_and_launch
 if "%1"=="--build" goto build_only
@@ -101,6 +106,15 @@ echo Running via Gradle in development mode (:desktopApp:run)...
 call "%~dp0gradlew.bat" :desktopApp:run
 goto :eof
 
+:set_version
+set "TARGET_VER=%~2"
+if "%TARGET_VER%"=="" (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\set_version.ps1"
+) else (
+    powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\set_version.ps1" -NewVersion "%TARGET_VER%"
+)
+goto :eof
+
 :show_help
 echo.
 echo Compile and Run Commands:
@@ -118,6 +132,9 @@ echo     .\run_desktop.bat --msix       (or: .\run_desktop.bat -m)
 echo.
 echo   To run with live Gradle dev logs:
 echo     .\run_desktop.bat --dev        (or: .\run_desktop.bat -d)
+echo.
+echo   To change application and installer version everywhere:
+echo     .\run_desktop.bat --version 0.8.1  (or: .\run_desktop.bat -v)
 echo.
 echo   Direct Gradle command:
 echo     .\gradlew.bat :desktopApp:createDistributable

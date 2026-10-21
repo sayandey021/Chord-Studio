@@ -92,15 +92,26 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 import json
 import whisper
 
-def transcribe(audio_path, model_name="tiny", output_file=None, language=None):
+def transcribe(audio_path, model_name="base", output_file=None, language=None):
     if not os.path.exists(audio_path):
         return {"error": f"Audio file not found: {audio_path}"}
 
-    print(f"Loading Whisper model: {model_name}", flush=True)
-    model = whisper.load_model(model_name)
+    # Normalize model name
+    m_lower = (model_name or "base").strip().lower()
+    if m_lower in ("large-v3-turbo", "turbo-large", "large_turbo"):
+        resolved_model = "large-v3-turbo"
+    elif m_lower in ("large", "large-v3"):
+        resolved_model = "large-v3"
+    elif m_lower in ("tiny", "default", ""):
+        resolved_model = "base"
+    else:
+        resolved_model = m_lower
+
+    print(f"Loading Whisper model: {resolved_model}", flush=True)
+    model = whisper.load_model(resolved_model)
     print(f"Model loaded. Starting transcription...", flush=True)
 
-    kwargs = {"verbose": True, "fp16": False, "condition_on_previous_text": False}
+    kwargs = {"verbose": True, "fp16": False, "condition_on_previous_text": False, "word_timestamps": True}
     if language and language.lower() not in ("auto", "none", ""):
         kwargs["language"] = language.lower()
 
@@ -118,15 +129,48 @@ def transcribe(audio_path, model_name="tiny", output_file=None, language=None):
         # Skip segments flagged as no_speech by Whisper
         if s.get("no_speech_prob", 0) > 0.85:
             continue
-        start = round(float(s["start"]), 2)
-        end = round(float(s["end"]), 2)
-        text = s["text"].strip()
-        if text:
-            segments.append({
-                "start": start,
-                "end": end,
-                "text": text
-            })
+        words = s.get("words", [])
+        if words and (float(s["end"]) - float(s["start"]) > 5.0 or len(words) > 7):
+            cur_line_words = []
+            cur_start = None
+            prev_end = float(s["start"])
+            for w in words:
+                w_text = w.get("word", "").strip()
+                if not w_text:
+                    continue
+                w_start = round(float(w.get("start", prev_end)), 2)
+                w_end = round(float(w.get("end", w_start)), 2)
+                if cur_start is None:
+                    cur_start = w_start
+                gap = w_start - prev_end
+                cur_line_words.append(w_text)
+                prev_end = w_end
+
+                is_punct = any(w_text.endswith(p) for p in (".", "?", "!", "|", "\n"))
+                is_comma = (w_text.endswith(",") or w_text.endswith("，")) and len(" ".join(cur_line_words)) >= 20
+                is_gap = gap >= 0.85 and len(cur_line_words) > 1
+                is_len = len(" ".join(cur_line_words)) >= 45
+
+                if is_punct or is_comma or is_gap or is_len:
+                    line_text = " ".join(cur_line_words).strip()
+                    if line_text:
+                        segments.append({"start": cur_start, "end": prev_end, "text": line_text})
+                    cur_line_words = []
+                    cur_start = None
+            if cur_line_words:
+                line_text = " ".join(cur_line_words).strip()
+                if line_text:
+                    segments.append({"start": cur_start if cur_start is not None else round(float(s["start"]), 2), "end": prev_end, "text": line_text})
+        else:
+            start = round(float(s["start"]), 2)
+            end = round(float(s["end"]), 2)
+            text = s["text"].strip()
+            if text:
+                segments.append({
+                    "start": start,
+                    "end": end,
+                    "text": text
+                })
 
     plain_text = result.get("text", "").strip()
 
@@ -151,7 +195,7 @@ if __name__ == "__main__":
         sys.exit(1)
         
     audio_path = sys.argv[1]
-    model_name = sys.argv[2] if len(sys.argv) > 2 else "tiny"
+    model_name = sys.argv[2] if len(sys.argv) > 2 else "base"
     out_file = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] != "none" else None
     language = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] != "auto" else None
     

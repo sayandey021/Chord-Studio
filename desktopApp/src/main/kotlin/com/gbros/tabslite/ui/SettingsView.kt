@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -36,6 +37,9 @@ import androidx.compose.ui.unit.sp
 import com.gbros.tabslite.data.AppSettings
 import com.gbros.tabslite.data.DesktopDatabase
 import com.gbros.tabslite.utilities.AudioDeviceManager
+import com.gbros.tabslite.utilities.OnnxChordModel
+import com.gbros.tabslite.utilities.WhisperModelManager
+import com.gbros.tabslite.utilities.WhisperModelInfo
 import io.github.vinceglb.filekit.compose.rememberFilePickerLauncher
 import io.github.vinceglb.filekit.compose.rememberFileSaverLauncher
 import io.github.vinceglb.filekit.core.PickerType
@@ -246,18 +250,33 @@ fun SettingsView(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp)
                             ) {
-                                Icon(
-                                    imageVector = tab.icon,
-                                    contentDescription = null,
-                                    tint = if (isSelected) colors.accent else colors.textSecondary,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                Box(
+                                    modifier = Modifier.size(18.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = tab.icon,
+                                        contentDescription = null,
+                                        tint = if (isSelected) colors.accent else colors.textSecondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                                 Spacer(Modifier.width(12.dp))
                                 Text(
                                     text = tab.title,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        lineHeight = 16.sp,
+                                        lineHeightStyle = LineHeightStyle(
+                                            alignment = LineHeightStyle.Alignment.Center,
+                                            trim = LineHeightStyle.Trim.Both
+                                        )
+                                    ),
                                     fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
                                     fontSize = 13.5.sp,
-                                    color = if (isSelected) colors.textPrimary else colors.textSecondary
+                                    color = if (isSelected) colors.textPrimary else colors.textSecondary,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.offset(y = (-1).dp)
                                 )
                             }
                         }
@@ -767,14 +786,20 @@ fun SettingsView(
                                         ) {
                                             Column {
                                                 Text("Neural Network Backend", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = colors.textPrimary)
-                                                Text("Microsoft ONNX Runtime 1.17 + Pure Kotlin DSP", fontSize = 12.sp, color = colors.textSecondary)
+                                                Text("Microsoft ONNX Runtime 1.17 (${OnnxChordModel.getActiveExecutionProvider()})", fontSize = 12.sp, color = colors.textSecondary)
                                             }
                                             Surface(
-                                                color = Color(0xFF064E3B),
+                                                color = Color(0xFF312E81),
                                                 shape = RoundedCornerShape(6.dp),
                                                 modifier = Modifier.padding(2.dp)
                                             ) {
-                                                Text("Hardware Active", fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF34D399), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                                                Text(
+                                                    text = "🖥 CPU Multi-Core",
+                                                    fontSize = 11.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFFA5B4FC),
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                )
                                             }
                                         }
 
@@ -805,6 +830,18 @@ fun SettingsView(
                                         )
                                     }
                                 }
+                            }
+
+                            item {
+                                WhisperModelsSettingsCard(
+                                    currentPreferredModel = settings.preferredWhisperModel,
+                                    onSelectPreferredModel = { modelId ->
+                                        coroutineScope.launch {
+                                            DesktopDatabase.instance.updateSettings { it.copy(preferredWhisperModel = modelId) }
+                                        }
+                                    },
+                                    onShowSnackbar = { msg -> snackbarMessage = msg }
+                                )
                             }
                         }
 
@@ -955,7 +992,7 @@ fun SettingsView(
                                             )
                                             Spacer(Modifier.height(3.dp))
                                             Text(
-                                                text = "v0.8.0 • Windows 64-bit Edition",
+                                                text = "v${com.gbros.tabslite.data.AppConfig.VERSION} • Windows 64-bit Edition",
                                                 fontSize = 12.5.sp,
                                                 fontWeight = FontWeight.Medium,
                                                 color = colors.textMuted
@@ -1018,39 +1055,6 @@ fun SettingsView(
                                             verticalArrangement = Arrangement.spacedBy(4.dp),
                                             modifier = Modifier.wrapContentWidth()
                                         ) {
-                                            // Microsoft Store
-                                            Surface(
-                                                onClick = { openWebUrl("https://apps.microsoft.com/detail/9P71JGK9JB2Q") },
-                                                color = Color.Transparent,
-                                                shape = RoundedCornerShape(6.dp)
-                                            ) {
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                                ) {
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .size(18.dp)
-                                                            .clip(RoundedCornerShape(3.dp))
-                                                            .background(Color(0xFF0078D4)),
-                                                        contentAlignment = Alignment.Center
-                                                    ) {
-                                                        Icon(
-                                                            imageVector = Icons.Default.ShoppingCart,
-                                                            contentDescription = "Microsoft Store",
-                                                            tint = Color.White,
-                                                            modifier = Modifier.size(12.dp)
-                                                        )
-                                                    }
-                                                    Spacer(Modifier.width(10.dp))
-                                                    Text(
-                                                        text = "Microsoft Store (ID: 9P71JGK9JB2Q)",
-                                                        fontSize = 13.5.sp,
-                                                        fontWeight = FontWeight.Medium,
-                                                        color = Color(0xFF38BDF8)
-                                                    )
-                                                }
-                                            }
 
                                             // LinkedIn
                                             Surface(
@@ -1126,9 +1130,6 @@ fun SettingsView(
                                 // Diagnostic Row Details & Package Build Info
                                 SettingsCard(title = "Engine Diagnostics & Build Specs") {
                                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        DiagnosticRow(label = "Package Identity", value = "Saayan.ChordStudio (PFN: Saayan.ChordStudio_f0v6x7d2rzc78)", statusColor = Color(0xFF34D399))
-                                        DiagnosticRow(label = "Publisher", value = "SaayanSoft (CN=37E2AF47-D2FC-489C-BDC1-02C989A7B989)", statusColor = Color(0xFF34D399))
-                                        DiagnosticRow(label = "Microsoft Store ID", value = "9P71JGK9JB2Q", statusColor = Color(0xFF34D399))
                                         DiagnosticRow(label = "Distribution Formats", value = "Windows 64-bit EXE & MSIX Package", statusColor = Color(0xFF34D399))
                                         DiagnosticRow(label = "Desktop Runtime", value = "Compose Multiplatform 1.7.3 (Skiko 60fps)", statusColor = Color(0xFF34D399))
                                         DiagnosticRow(label = "Audio DSP Engine", value = "Active (16 kHz Resampler + Subharmonic CQT)", statusColor = Color(0xFF34D399))
@@ -1335,4 +1336,338 @@ fun DiagnosticRow(
         }
     }
 }
+
+@Composable
+fun WhisperModelsSettingsCard(
+    currentPreferredModel: String,
+    onSelectPreferredModel: (String) -> Unit,
+    onShowSnackbar: (String) -> Unit
+) {
+    val colors = AppColors
+    val coroutineScope = rememberCoroutineScope()
+    val downloadProgress by WhisperModelManager.downloadProgress.collectAsState()
+    val downloadStatusText by WhisperModelManager.downloadStatusText.collectAsState()
+    val modelsVersion by WhisperModelManager.modelsVersion.collectAsState()
+
+    SettingsCard(title = "Speech-to-Text AI Models (Whisper)") {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Text(
+                text = "Download or switch Whisper speech recognition models matched to your PC hardware. Larger models significantly improve accuracy on singing voices, backing music, harmonies, and multi-lingual lyrics (Hindi, Bengali, English).",
+                fontSize = 12.5.sp,
+                color = colors.textSecondary,
+                lineHeight = 18.sp
+            )
+
+            WhisperModelManager.AVAILABLE_MODELS.forEachIndexed { index, model ->
+                if (index > 0) {
+                    HorizontalDivider(color = colors.border)
+                }
+
+                key(model.id, modelsVersion) {
+                    val isInstalled = remember(model.id, modelsVersion) { WhisperModelManager.isModelInstalled(model.id) }
+                    val isDownloading = downloadProgress.containsKey(model.id)
+                    val progress = downloadProgress[model.id] ?: 0f
+                    val statusText = downloadStatusText[model.id] ?: ""
+                    val isPreferred = currentPreferredModel.equals(model.id, ignoreCase = true)
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = if (isPreferred) colors.cardElevated else colors.card,
+                        border = BorderStroke(1.dp, if (isPreferred) colors.accent.copy(alpha = 0.6f) else colors.border),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            // Header Row: Model Name & Badges
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false)) {
+                                    Text(
+                                        text = model.name,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = colors.textPrimary
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Surface(
+                                        shape = RoundedCornerShape(5.dp),
+                                        color = model.accuracyColor.copy(alpha = 0.15f),
+                                        border = BorderStroke(1.dp, model.accuracyColor.copy(alpha = 0.45f)),
+                                        modifier = Modifier.height(22.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxHeight().padding(horizontal = 7.dp)) {
+                                            Text(
+                                                text = model.accuracyLevel,
+                                                fontSize = 10.5.sp,
+                                                lineHeight = 10.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = model.accuracyColor
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    if (isPreferred) {
+                                        Surface(
+                                            shape = RoundedCornerShape(5.dp),
+                                            color = colors.accent.copy(alpha = 0.18f),
+                                            border = BorderStroke(1.dp, colors.accent),
+                                            modifier = Modifier.height(24.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxHeight().padding(horizontal = 8.dp)) {
+                                                Text(
+                                                    text = "Active Model",
+                                                    fontSize = 11.sp,
+                                                    lineHeight = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = colors.accent
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    if (isInstalled) {
+                                        Surface(
+                                            shape = RoundedCornerShape(5.dp),
+                                            color = Color(0xFF064E3B).copy(alpha = 0.45f),
+                                            border = BorderStroke(1.dp, Color(0xFF059669)),
+                                            modifier = Modifier.height(24.dp)
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center,
+                                                modifier = Modifier.fillMaxHeight().padding(horizontal = 8.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFF34D399),
+                                                    modifier = Modifier.size(13.dp)
+                                                )
+                                                Spacer(Modifier.width(4.dp))
+                                                Text(
+                                                    text = "Installed",
+                                                    fontSize = 11.sp,
+                                                    lineHeight = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = Color(0xFF34D399)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Description
+                            Text(
+                                text = model.description,
+                                fontSize = 12.sp,
+                                color = colors.textSecondary,
+                                lineHeight = 16.sp
+                            )
+
+                            // Specs Tags
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(5.dp),
+                                    color = Color(0xFF1E2436),
+                                    border = BorderStroke(1.dp, Color(0xFF333D56)),
+                                    modifier = Modifier.height(22.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxHeight().padding(horizontal = 7.dp)) {
+                                        Text(
+                                            text = "Download: ${model.sizeText}",
+                                            fontSize = 10.5.sp,
+                                            lineHeight = 10.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color(0xFFCBD5E1)
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(5.dp),
+                                    color = Color(0xFF1E2436),
+                                    border = BorderStroke(1.dp, Color(0xFF333D56)),
+                                    modifier = Modifier.height(22.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxHeight().padding(horizontal = 7.dp)) {
+                                        Text(
+                                            text = "Memory: ${model.ramRequired}",
+                                            fontSize = 10.5.sp,
+                                            lineHeight = 10.5.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = Color(0xFFCBD5E1)
+                                        )
+                                    }
+                                }
+
+                                Text(
+                                    text = "•  ${model.recommendedSpecs}",
+                                    fontSize = 11.5.sp,
+                                    lineHeight = 11.5.sp,
+                                    color = colors.textMuted,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+                            }
+
+                            // Downloading state with progress bar
+                            if (isDownloading) {
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = statusText.ifBlank { "Downloading model from Hugging Face..." },
+                                            fontSize = 11.sp,
+                                            color = colors.accent,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        TextButton(
+                                            onClick = { WhisperModelManager.cancelDownload(model.id) },
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                            modifier = Modifier.height(24.dp)
+                                        ) {
+                                            Text("Cancel", fontSize = 11.sp, color = Color(0xFFEF4444))
+                                        }
+                                    }
+                                    LinearProgressIndicator(
+                                        progress = progress,
+                                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                                        color = colors.accent,
+                                        trackColor = colors.surface
+                                    )
+                                }
+                            } else {
+                                // Action Buttons
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (isInstalled) {
+                                        if (!isPreferred) {
+                                            Button(
+                                                onClick = {
+                                                    onSelectPreferredModel(model.id)
+                                                    onShowSnackbar("Set ${model.name} as default model.")
+                                                },
+                                                shape = RoundedCornerShape(6.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = colors.cardElevated),
+                                                border = BorderStroke(1.dp, colors.borderHover),
+                                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                                                modifier = Modifier.height(30.dp)
+                                            ) {
+                                                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxHeight()) {
+                                                    Text("Use as Active", fontSize = 11.5.sp, lineHeight = 11.5.sp, color = colors.textPrimary)
+                                                }
+                                            }
+                                        }
+
+                                        val installedCount = WhisperModelManager.getInstalledModels().size
+                                        if (installedCount > 1 || !isPreferred) {
+                                            Spacer(Modifier.width(8.dp))
+                                            OutlinedButton(
+                                                onClick = {
+                                                    val success = WhisperModelManager.deleteModel(model.id)
+                                                    if (success) {
+                                                        if (isPreferred) {
+                                                            val nextModel = WhisperModelManager.getInstalledModels().firstOrNull { it.id != model.id }?.id ?: "base"
+                                                            onSelectPreferredModel(nextModel)
+                                                        }
+                                                        onShowSnackbar("Deleted ${model.name} to free storage.")
+                                                    }
+                                                },
+                                                shape = RoundedCornerShape(6.dp),
+                                                colors = ButtonDefaults.outlinedButtonColors(
+                                                    contentColor = Color(0xFFF87171),
+                                                    containerColor = Color(0xFF7F1D1D).copy(alpha = 0.15f)
+                                                ),
+                                                border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.45f)),
+                                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                                modifier = Modifier.height(30.dp)
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.DeleteOutline,
+                                                        contentDescription = "Delete model",
+                                                        tint = Color(0xFFF87171),
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                    Spacer(Modifier.width(5.dp))
+                                                    Text(
+                                                        text = "Delete",
+                                                        fontSize = 11.5.sp,
+                                                        lineHeight = 11.5.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = Color(0xFFF87171)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        Button(
+                                            onClick = {
+                                                WhisperModelManager.startDownload(
+                                                    model = model,
+                                                    scope = coroutineScope,
+                                                    onSuccess = {
+                                                        onSelectPreferredModel(model.id)
+                                                        onShowSnackbar("Downloaded ${model.name}! Now set as active model.")
+                                                    },
+                                                    onError = { err ->
+                                                        onShowSnackbar("Download failed: $err")
+                                                    }
+                                                )
+                                            },
+                                            shape = RoundedCornerShape(6.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
+                                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                                            modifier = Modifier.height(30.dp)
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.CloudDownload,
+                                                    contentDescription = null,
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Spacer(Modifier.width(6.dp))
+                                                Text(
+                                                    text = "Download (${model.sizeText})",
+                                                    fontSize = 11.5.sp,
+                                                    lineHeight = 11.5.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = Color.White
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+
 

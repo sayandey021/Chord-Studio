@@ -82,19 +82,27 @@ fun main() {
                             true
                         }
                         keyEvent.isCtrlPressed && keyEvent.key == Key.Two -> {
-                            selectedSection = NavigationSection.FAVORITES
+                            selectedSection = NavigationSection.LEARN
                             true
                         }
                         keyEvent.isCtrlPressed && keyEvent.key == Key.Three -> {
-                            selectedSection = NavigationSection.PLAYLISTS
+                            selectedSection = NavigationSection.FAVORITES
                             true
                         }
                         keyEvent.isCtrlPressed && keyEvent.key == Key.Four -> {
-                            selectedSection = NavigationSection.HISTORY
+                            selectedSection = NavigationSection.PLAYLISTS
                             true
                         }
                         keyEvent.isCtrlPressed && keyEvent.key == Key.Five -> {
+                            selectedSection = NavigationSection.HISTORY
+                            true
+                        }
+                        keyEvent.isCtrlPressed && keyEvent.key == Key.Six -> {
                             selectedSection = NavigationSection.TUNER
+                            true
+                        }
+                        keyEvent.isCtrlPressed && keyEvent.key == Key.Seven -> {
+                            selectedSection = NavigationSection.AI_STUDIO
                             true
                         }
                         keyEvent.isCtrlPressed && keyEvent.key == Key.N -> {

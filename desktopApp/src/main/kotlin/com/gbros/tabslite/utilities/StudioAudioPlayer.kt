@@ -38,12 +38,6 @@ object StudioAudioPlayer {
     @Volatile
     var pitchShift: Int = 0
 
-    private const val GRAIN_WINDOW_SIZE = 1024
-    private const val GRAIN_HALF_SIZE = 512
-    private val HANN_WINDOW = FloatArray(GRAIN_WINDOW_SIZE) { i ->
-        (0.5 * (1.0 - kotlin.math.cos(2.0 * Math.PI * i / GRAIN_WINDOW_SIZE))).toFloat()
-    }
-
     private fun sampleAt(pos: Double): Float {
         if (pos < 0.0) return 0f
         val idx = pos.toInt()
@@ -90,29 +84,44 @@ object StudioAudioPlayer {
                 dataLine = line
 
                 var currentSamplePos = safeStartSec * sampleRate
-                var grainPhase = 0
-                var grain0Anchor = currentSamplePos
-                val initialRatio = if (pitchShift != 0) Math.pow(2.0, pitchShift.toDouble() / 12.0) else 1.0
-                var grain1Anchor = currentSamplePos - (GRAIN_HALF_SIZE * initialRatio)
+
+                val overlapSize = (sampleRate * 0.016f).toInt().coerceAtLeast(64)
+                val windowSize = (sampleRate * 0.064f).toInt().coerceAtLeast(overlapSize * 2)
+                val hopSize = windowSize - overlapSize
+                val searchRange = (sampleRate * 0.012f).toInt().coerceAtLeast(32)
+
+                val overlapBuffer = FloatArray(overlapSize)
+                var overlapBufferValid = false
+
+                val crossfadeWeights = FloatArray(overlapSize) { i ->
+                    (0.5 * (1.0 - kotlin.math.cos(Math.PI * i / overlapSize))).toFloat()
+                }
+
+                val STAGING_CAPACITY = 8192
+                val stagingBuffer = FloatArray(STAGING_CAPACITY)
+                var stagingHead = 0
+                var stagingTail = 0
+                var stagingCount = 0
 
                 val bufferSize = 512
                 val byteBuffer = ByteArray(bufferSize * 2)
 
                 while (isPlaying && isActive) {
-                    if (currentSamplePos >= audioSamples.size) {
+                    if (currentSamplePos >= audioSamples.size && stagingCount == 0) {
                         if (isLooping) {
                             currentSamplePos = 0.0
                             currentPlayTimeSeconds = 0.0
-                            grainPhase = 0
-                            grain0Anchor = 0.0
-                            grain1Anchor = - (GRAIN_HALF_SIZE * initialRatio)
+                            overlapBufferValid = false
+                            stagingHead = 0
+                            stagingTail = 0
+                            stagingCount = 0
                         } else {
                             break
                         }
                     }
 
                     val effectiveVolume = if (isMuted) 0f else volume
-                    val currentSpeed = speed.coerceIn(0.25f, 3.0f)
+                    val currentSpeed = speed.coerceIn(0.25f, 3.0f).toDouble()
                     val currentPitch = pitchShift
                     val pitchRatio = if (currentPitch != 0) {
                         Math.pow(2.0, currentPitch.toDouble() / 12.0)
@@ -123,39 +132,94 @@ object StudioAudioPlayer {
                     var byteIdx = 0
                     var framesFilled = 0
 
-                    while (framesFilled < bufferSize && currentSamplePos < audioSamples.size) {
-                        val rawSample: Float
-                        if (currentPitch == 0) {
+                    if (currentPitch == 0 && currentSpeed == 1.0) {
+                        // Direct lossless streaming with 0 processing latency
+                        while (framesFilled < bufferSize && stagingCount > 0) {
+                            val rawSample = stagingBuffer[stagingTail]
+                            stagingTail = (stagingTail + 1) % STAGING_CAPACITY
+                            stagingCount--
+                            val scaled = (rawSample * effectiveVolume).coerceIn(-1.0f, 1.0f)
+                            val pcmShort = (scaled * 32767.0f).toInt().coerceIn(-32768, 32767)
+                            byteBuffer[byteIdx++] = (pcmShort and 0xFF).toByte()
+                            byteBuffer[byteIdx++] = ((pcmShort shr 8) and 0xFF).toByte()
+                            framesFilled++
+                        }
+                        while (framesFilled < bufferSize && currentSamplePos < audioSamples.size) {
                             val idx = currentSamplePos.toInt()
-                            rawSample = if (idx in audioSamples.indices) audioSamples[idx] else 0f
-                            grainPhase = 0
-                            grain0Anchor = currentSamplePos
-                            grain1Anchor = currentSamplePos - GRAIN_HALF_SIZE
-                        } else {
-                            if (grainPhase == 0) {
-                                grain0Anchor = currentSamplePos
-                            } else if (grainPhase == GRAIN_HALF_SIZE) {
-                                grain1Anchor = currentSamplePos
+                            val rawSample = if (idx in audioSamples.indices) audioSamples[idx] else 0f
+                            val scaled = (rawSample * effectiveVolume).coerceIn(-1.0f, 1.0f)
+                            val pcmShort = (scaled * 32767.0f).toInt().coerceIn(-32768, 32767)
+                            byteBuffer[byteIdx++] = (pcmShort and 0xFF).toByte()
+                            byteBuffer[byteIdx++] = ((pcmShort shr 8) and 0xFF).toByte()
+                            currentSamplePos += 1.0
+                            framesFilled++
+                        }
+                        overlapBufferValid = false
+                    } else {
+                        // High-Fidelity SOLA (Synchronized Overlap-Add) Pitch & Speed Engine
+                        while (stagingCount < bufferSize && currentSamplePos < audioSamples.size) {
+                            var bestOffset = 0
+                            if (overlapBufferValid) {
+                                var minDiff = Float.MAX_VALUE
+                                val minD = (-searchRange).coerceAtLeast((-currentSamplePos / pitchRatio).toInt())
+                                val maxD = searchRange.coerceAtMost(((audioSamples.size - 1 - currentSamplePos) / pitchRatio).toInt())
+
+                                var d = minD
+                                while (d <= maxD) {
+                                    var diff = 0f
+                                    var k = 0
+                                    while (k < overlapSize) {
+                                        val sCandidate = sampleAt(currentSamplePos + (d + k) * pitchRatio)
+                                        diff += kotlin.math.abs(overlapBuffer[k] - sCandidate)
+                                        if (diff >= minDiff) break
+                                        k += 2
+                                    }
+                                    if (diff < minDiff) {
+                                        minDiff = diff
+                                        bestOffset = d
+                                    }
+                                    d += 2
+                                }
                             }
 
-                            val p0 = grainPhase
-                            val p1 = (grainPhase + GRAIN_HALF_SIZE) % GRAIN_WINDOW_SIZE
+                            val grainAnchor = currentSamplePos + bestOffset * pitchRatio
 
-                            val s0 = sampleAt(grain0Anchor + p0 * pitchRatio)
-                            val s1 = sampleAt(grain1Anchor + p1 * pitchRatio)
+                            for (k in 0 until hopSize) {
+                                val sNew = sampleAt(grainAnchor + k * pitchRatio)
+                                val outSample = if (k < overlapSize && overlapBufferValid) {
+                                    val w = crossfadeWeights[k]
+                                    (1f - w) * overlapBuffer[k] + w * sNew
+                                } else {
+                                    sNew
+                                }
+                                if (stagingCount < STAGING_CAPACITY) {
+                                    stagingBuffer[stagingHead] = outSample
+                                    stagingHead = (stagingHead + 1) % STAGING_CAPACITY
+                                    stagingCount++
+                                }
+                            }
 
-                            rawSample = HANN_WINDOW[p0] * s0 + HANN_WINDOW[p1] * s1
-                            grainPhase = (grainPhase + 1) % GRAIN_WINDOW_SIZE
+                            for (k in 0 until overlapSize) {
+                                overlapBuffer[k] = sampleAt(grainAnchor + (hopSize + k) * pitchRatio)
+                            }
+                            overlapBufferValid = true
+
+                            currentSamplePos += hopSize * currentSpeed
                         }
 
-                        val scaled = (rawSample * effectiveVolume).coerceIn(-1.0f, 1.0f)
-                        val pcmShort = (scaled * 32767.0f).toInt().coerceIn(-32768, 32767)
+                        while (framesFilled < bufferSize && stagingCount > 0) {
+                            val rawSample = stagingBuffer[stagingTail]
+                            stagingTail = (stagingTail + 1) % STAGING_CAPACITY
+                            stagingCount--
 
-                        byteBuffer[byteIdx++] = (pcmShort and 0xFF).toByte()
-                        byteBuffer[byteIdx++] = ((pcmShort shr 8) and 0xFF).toByte()
+                            val scaled = (rawSample * effectiveVolume).coerceIn(-1.0f, 1.0f)
+                            val pcmShort = (scaled * 32767.0f).toInt().coerceIn(-32768, 32767)
 
-                        currentSamplePos += currentSpeed
-                        framesFilled++
+                            byteBuffer[byteIdx++] = (pcmShort and 0xFF).toByte()
+                            byteBuffer[byteIdx++] = ((pcmShort shr 8) and 0xFF).toByte()
+
+                            framesFilled++
+                        }
                     }
 
                     if (framesFilled == 0) break

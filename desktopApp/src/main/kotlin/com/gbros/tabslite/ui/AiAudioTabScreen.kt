@@ -16,6 +16,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.VerticalScrollbar
+import androidx.compose.foundation.defaultScrollbarStyle
+import androidx.compose.foundation.rememberScrollbarAdapter
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -66,75 +71,319 @@ import com.gbros.tabslite.utilities.AudioAnalysisResult
 import com.gbros.tabslite.utilities.ChordEvent
 import com.gbros.tabslite.utilities.ChordShape
 import com.gbros.tabslite.utilities.DemoAudioTrack
+import com.gbros.tabslite.utilities.LearnInstrument
+import com.gbros.tabslite.utilities.MusicTheoryAudioPlayer
 import com.gbros.tabslite.utilities.OnnxChordModel
 import com.gbros.tabslite.utilities.StudioAudioPlayer
 import com.gbros.tabslite.utilities.TabTransposer
 import com.gbros.tabslite.utilities.LyricsExtractor
 import com.gbros.tabslite.utilities.SyncedLyricLine
 import com.gbros.tabslite.utilities.ExtractedLyricsResult
+import com.gbros.tabslite.utilities.WhisperModelManager
+import com.gbros.tabslite.utilities.PhoneticTransliterator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import io.github.vinceglb.filekit.compose.rememberFilePickerLauncher
-import io.github.vinceglb.filekit.core.PickerType
+import com.gbros.tabslite.utilities.DesktopAudioPicker
+
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.UUID
 import javax.sound.sampled.*
 import kotlin.math.*
 
+class AiAudioStudioState {
+    val activeViewModeState = mutableStateOf("STUDIO_TIMELINE")
+    var activeViewMode: String
+        get() = activeViewModeState.value
+        set(value) { activeViewModeState.value = value }
+
+    val showImportDialogState = mutableStateOf(false)
+    var showImportDialog: Boolean
+        get() = showImportDialogState.value
+        set(value) { showImportDialogState.value = value }
+
+    val selectedFileState = mutableStateOf<File?>(null)
+    var selectedFile: File?
+        get() = selectedFileState.value
+        set(value) { selectedFileState.value = value }
+
+    val currentAudioSamplesState = mutableStateOf<FloatArray?>(null)
+    var currentAudioSamples: FloatArray?
+        get() = currentAudioSamplesState.value
+        set(value) { currentAudioSamplesState.value = value }
+
+    val selectedDemoState = mutableStateOf<DemoAudioTrack?>(null)
+    var selectedDemo: DemoAudioTrack?
+        get() = selectedDemoState.value
+        set(value) { selectedDemoState.value = value }
+
+    val songTitleState = mutableStateOf("")
+    var songTitle: String
+        get() = songTitleState.value
+        set(value) { songTitleState.value = value }
+
+    val artistNameState = mutableStateOf("")
+    var artistName: String
+        get() = artistNameState.value
+        set(value) { artistNameState.value = value }
+
+    val customLyricsState = mutableStateOf("")
+    var customLyrics: String
+        get() = customLyricsState.value
+        set(value) { customLyricsState.value = value }
+
+    val syncedLyricsState = mutableStateOf<List<SyncedLyricLine>>(emptyList())
+    var syncedLyrics: List<SyncedLyricLine>
+        get() = syncedLyricsState.value
+        set(value) { syncedLyricsState.value = value }
+
+    val showLyricsDrawerState = mutableStateOf(false)
+    var showLyricsDrawer: Boolean
+        get() = showLyricsDrawerState.value
+        set(value) { showLyricsDrawerState.value = value }
+
+    val isFetchingLyricsOnlineState = mutableStateOf(false)
+    var isFetchingLyricsOnline: Boolean
+        get() = isFetchingLyricsOnlineState.value
+        set(value) { isFetchingLyricsOnlineState.value = value }
+
+    val isTranscribingLyricsAiState = mutableStateOf(false)
+    var isTranscribingLyricsAi: Boolean
+        get() = isTranscribingLyricsAiState.value
+        set(value) { isTranscribingLyricsAiState.value = value }
+
+    val aiLyricsProgressTextState = mutableStateOf("")
+    var aiLyricsProgressText: String
+        get() = aiLyricsProgressTextState.value
+        set(value) { aiLyricsProgressTextState.value = value }
+
+    val aiTranscribeErrorTextState = mutableStateOf<String?>(null)
+    var aiTranscribeErrorText: String?
+        get() = aiTranscribeErrorTextState.value
+        set(value) { aiTranscribeErrorTextState.value = value }
+
+    val aiTranscribeProgressState = mutableFloatStateOf(0f)
+    var aiTranscribeProgress: Float
+        get() = aiTranscribeProgressState.floatValue
+        set(value) { aiTranscribeProgressState.floatValue = value }
+
+    val aiTranscribeStartMsState = mutableLongStateOf(0L)
+    var aiTranscribeStartMs: Long
+        get() = aiTranscribeStartMsState.longValue
+        set(value) { aiTranscribeStartMsState.longValue = value }
+
+
+    val isAnalyzingState = mutableStateOf(false)
+    var isAnalyzing: Boolean
+        get() = isAnalyzingState.value
+        set(value) { isAnalyzingState.value = value }
+
+    val analysisProgressState = mutableFloatStateOf(0f)
+    var analysisProgress: Float
+        get() = analysisProgressState.floatValue
+        set(value) { analysisProgressState.floatValue = value }
+
+    val currentStepMessageState = mutableStateOf("Ready to analyze audio")
+    var currentStepMessage: String
+        get() = currentStepMessageState.value
+        set(value) { currentStepMessageState.value = value }
+
+    val errorMessageState = mutableStateOf<String?>(null)
+    var errorMessage: String?
+        get() = errorMessageState.value
+        set(value) { errorMessageState.value = value }
+
+    val analysisResultState = mutableStateOf<AudioAnalysisResult?>(null)
+    var analysisResult: AudioAnalysisResult?
+        get() = analysisResultState.value
+        set(value) { analysisResultState.value = value }
+
+    val saveStatusMessageState = mutableStateOf<String?>(null)
+    var saveStatusMessage: String?
+        get() = saveStatusMessageState.value
+        set(value) { saveStatusMessageState.value = value }
+
+    val chordFilterModeState = mutableStateOf("All")
+    var chordFilterMode: String
+        get() = chordFilterModeState.value
+        set(value) { chordFilterModeState.value = value }
+
+    val showPositionsState = mutableStateOf(true)
+    var showPositions: Boolean
+        get() = showPositionsState.value
+        set(value) { showPositionsState.value = value }
+
+    val capoPositionState = mutableIntStateOf(0)
+    var capoPosition: Int
+        get() = capoPositionState.intValue
+        set(value) { capoPositionState.intValue = value }
+
+    val pitchShiftStepsState = mutableIntStateOf(0)
+    var pitchShiftSteps: Int
+        get() = pitchShiftStepsState.intValue
+        set(value) { pitchShiftStepsState.intValue = value }
+
+    val speedMultiplierState = mutableFloatStateOf(1.0f)
+    var speedMultiplier: Float
+        get() = speedMultiplierState.floatValue
+        set(value) { speedMultiplierState.floatValue = value }
+
+    val isLoopingState = mutableStateOf(false)
+    var isLooping: Boolean
+        get() = isLoopingState.value
+        set(value) { isLoopingState.value = value }
+
+    val volumeLevelState = mutableFloatStateOf(0.85f)
+    var volumeLevel: Float
+        get() = volumeLevelState.floatValue
+        set(value) { volumeLevelState.floatValue = value }
+
+    val isMutedState = mutableStateOf(false)
+    var isMuted: Boolean
+        get() = isMutedState.value
+        set(value) { isMutedState.value = value }
+
+    val isPlayingState = mutableStateOf(false)
+    var isPlaying: Boolean
+        get() = isPlayingState.value
+        set(value) { isPlayingState.value = value }
+
+    val currentPlayTimeSecondsState = mutableDoubleStateOf(0.0)
+    var currentPlayTimeSeconds: Double
+        get() = currentPlayTimeSecondsState.doubleValue
+        set(value) { currentPlayTimeSecondsState.doubleValue = value }
+
+    val smoothPlayTimeSecondsState = mutableDoubleStateOf(0.0)
+    var smoothPlayTimeSeconds: Double
+        get() = smoothPlayTimeSecondsState.doubleValue
+        set(value) { smoothPlayTimeSecondsState.doubleValue = value }
+
+    val lastAudioClockSecondsState = mutableDoubleStateOf(0.0)
+    var lastAudioClockSeconds: Double
+        get() = lastAudioClockSecondsState.doubleValue
+        set(value) { lastAudioClockSecondsState.doubleValue = value }
+
+    val lastAudioClockNanosState = mutableLongStateOf(0L)
+    var lastAudioClockNanos: Long
+        get() = lastAudioClockNanosState.longValue
+        set(value) { lastAudioClockNanosState.longValue = value }
+
+    val isRecordingMicState = mutableStateOf(false)
+    var isRecordingMic: Boolean
+        get() = isRecordingMicState.value
+        set(value) { isRecordingMicState.value = value }
+
+    val micRecordingTimeSecondsState = mutableIntStateOf(0)
+    var micRecordingTimeSeconds: Int
+        get() = micRecordingTimeSecondsState.intValue
+        set(value) { micRecordingTimeSecondsState.intValue = value }
+
+    val micTargetLineState = mutableStateOf<TargetDataLine?>(null)
+    var micTargetLine: TargetDataLine?
+        get() = micTargetLineState.value
+        set(value) { micTargetLineState.value = value }
+
+    val micRecordedSamplesState = mutableStateOf<FloatArray?>(null)
+    var micRecordedSamples: FloatArray?
+        get() = micRecordedSamplesState.value
+        set(value) { micRecordedSamplesState.value = value }
+
+    fun resetSession() {
+        StudioAudioPlayer.stop()
+        selectedFile = null
+        currentAudioSamples = null
+        selectedDemo = null
+        songTitle = ""
+        artistName = ""
+        customLyrics = ""
+        syncedLyrics = emptyList()
+        showLyricsDrawer = false
+        isFetchingLyricsOnline = false
+        isTranscribingLyricsAi = false
+        aiLyricsProgressText = ""
+        aiTranscribeErrorText = null
+        isAnalyzing = false
+        analysisProgress = 0f
+        currentStepMessage = "Ready to analyze audio"
+        errorMessage = null
+        analysisResult = null
+        saveStatusMessage = null
+        chordFilterMode = "All"
+        showPositions = true
+        capoPosition = 0
+        pitchShiftSteps = 0
+        speedMultiplier = 1.0f
+        isLooping = false
+        isPlaying = false
+        currentPlayTimeSeconds = 0.0
+        smoothPlayTimeSeconds = 0.0
+        lastAudioClockSeconds = 0.0
+        lastAudioClockNanos = 0L
+        isRecordingMic = false
+        micRecordingTimeSeconds = 0
+        micTargetLine = null
+        micRecordedSamples = null
+        activeViewMode = "STUDIO_TIMELINE"
+        showImportDialog = false
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiAudioTabScreen(
     onOpenInTabViewer: (String) -> Unit,
+    state: AiAudioStudioState = remember { AiAudioStudioState() },
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
     val clipboardManager = LocalClipboardManager.current
 
     // Studio View Mode: STUDIO_TIMELINE vs CLASSIC_TAB
-    var activeViewMode by remember { mutableStateOf("STUDIO_TIMELINE") }
-    var showImportDialog by remember { mutableStateOf(false) }
+    var activeViewMode by state.activeViewModeState
+    var showImportDialog by state.showImportDialogState
 
     // Audio Analysis State
-    var selectedFile by remember { mutableStateOf<File?>(null) }
-    var currentAudioSamples by remember { mutableStateOf<FloatArray?>(null) }
-    var selectedDemo by remember { mutableStateOf<DemoAudioTrack?>(null) }
-    var songTitle by remember { mutableStateOf("") }
-    var artistName by remember { mutableStateOf("") }
-    var customLyrics by remember { mutableStateOf("") }
-    var syncedLyrics by remember { mutableStateOf<List<SyncedLyricLine>>(emptyList()) }
-    var showLyricsDrawer by remember { mutableStateOf(false) }
-    var isFetchingLyricsOnline by remember { mutableStateOf(false) }
-    var isTranscribingLyricsAi by remember { mutableStateOf(false) }
-    var aiLyricsProgressText by remember { mutableStateOf("") }
-    var aiTranscribeErrorText by remember { mutableStateOf<String?>(null) }
+    var selectedFile by state.selectedFileState
+    var currentAudioSamples by state.currentAudioSamplesState
+    var selectedDemo by state.selectedDemoState
+    var songTitle by state.songTitleState
+    var artistName by state.artistNameState
+    var customLyrics by state.customLyricsState
+    var syncedLyrics by state.syncedLyricsState
+    var showLyricsDrawer by state.showLyricsDrawerState
+    var isFetchingLyricsOnline by state.isFetchingLyricsOnlineState
+    var isTranscribingLyricsAi by state.isTranscribingLyricsAiState
+    var aiLyricsProgressText by state.aiLyricsProgressTextState
+    var aiTranscribeProgress by state.aiTranscribeProgressState
+    var aiTranscribeStartMs by state.aiTranscribeStartMsState
+    var aiTranscribeErrorText by state.aiTranscribeErrorTextState
 
-    var isAnalyzing by remember { mutableStateOf(false) }
-    var analysisProgress by remember { mutableFloatStateOf(0f) }
-    var currentStepMessage by remember { mutableStateOf("Ready to analyze audio") }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    var analysisResult by remember { mutableStateOf<AudioAnalysisResult?>(null) }
-    var saveStatusMessage by remember { mutableStateOf<String?>(null) }
+    var isAnalyzing by state.isAnalyzingState
+    var analysisProgress by state.analysisProgressState
+    var currentStepMessage by state.currentStepMessageState
+    var errorMessage by state.errorMessageState
+    var analysisResult by state.analysisResultState
+    var saveStatusMessage by state.saveStatusMessageState
 
     // Studio Controls State (as circled by user)
-    var chordFilterMode by remember { mutableStateOf("All") } // "Basic" or "All"
-    var showPositions by remember { mutableStateOf(true) } // Positions toggle switch
-    var capoPosition by remember { mutableIntStateOf(0) }
-    var pitchShiftSteps by remember { mutableIntStateOf(0) } // Transpose in half steps
-    var speedMultiplier by remember { mutableFloatStateOf(1.0f) }
-    var isLooping by remember { mutableStateOf(false) }
-    var volumeLevel by remember { mutableFloatStateOf(0.85f) }
-    var isMuted by remember { mutableStateOf(false) }
+    var chordFilterMode by state.chordFilterModeState
+    var showPositions by state.showPositionsState
+    var capoPosition by state.capoPositionState
+    var pitchShiftSteps by state.pitchShiftStepsState
+    var speedMultiplier by state.speedMultiplierState
+    var isLooping by state.isLoopingState
+    var volumeLevel by state.volumeLevelState
+    var isMuted by state.isMutedState
 
     // Playback Timeline Clock & Audio Player State
-    var isPlaying by remember { mutableStateOf(false) }
-    var currentPlayTimeSeconds by remember { mutableDoubleStateOf(0.0) }
-    var smoothPlayTimeSeconds by remember { mutableDoubleStateOf(0.0) }
-    var lastAudioClockSeconds by remember { mutableDoubleStateOf(0.0) }
-    var lastAudioClockNanos by remember { mutableLongStateOf(0L) }
+    var isPlaying by state.isPlayingState
+    var currentPlayTimeSeconds by state.currentPlayTimeSecondsState
+    var smoothPlayTimeSeconds by state.smoothPlayTimeSecondsState
+    var lastAudioClockSeconds by state.lastAudioClockSecondsState
+    var lastAudioClockNanos by state.lastAudioClockNanosState
     val totalDurationSeconds = remember(analysisResult) { analysisResult?.durationSeconds ?: 0.0 }
 
     // Connect StudioAudioPlayer callbacks & volume/mute settings
@@ -148,7 +397,21 @@ fun AiAudioTabScreen(
             isPlaying = false
         }
         onDispose {
-            StudioAudioPlayer.stop()
+            if (isPlaying) {
+                StudioAudioPlayer.pause()
+                isPlaying = false
+            }
+        }
+    }
+
+    // Re-verify StudioAudioPlayer has samples loaded if returning with an existing analysis result
+    LaunchedEffect(analysisResult) {
+        val result = analysisResult
+        if (result != null && result.audioSamples.isNotEmpty() && StudioAudioPlayer.getDurationSeconds() == 0.0) {
+            StudioAudioPlayer.loadAudio(result.audioSamples, result.sampleRate)
+            if (currentPlayTimeSeconds > 0.0) {
+                StudioAudioPlayer.seek(currentPlayTimeSeconds)
+            }
         }
     }
 
@@ -187,10 +450,10 @@ fun AiAudioTabScreen(
     }
 
     // Microphone Recording State
-    var isRecordingMic by remember { mutableStateOf(false) }
-    var micRecordingTimeSeconds by remember { mutableIntStateOf(0) }
-    var micTargetLine by remember { mutableStateOf<TargetDataLine?>(null) }
-    var micRecordedSamples by remember { mutableStateOf<FloatArray?>(null) }
+    var isRecordingMic by state.isRecordingMicState
+    var micRecordingTimeSeconds by state.micRecordingTimeSecondsState
+    var micTargetLine by state.micTargetLineState
+    var micRecordedSamples by state.micRecordedSamplesState
 
     fun resolveTitleAndArtist(file: File): Pair<String, String> {
         val meta = LyricsExtractor.readAudioMetadata(file)
@@ -215,7 +478,12 @@ fun AiAudioTabScreen(
         val mic = if (fileOverride != null || demo != null) null else micRecordedSamples
 
         if (file == null && demo == null && mic == null) {
-            errorMessage = "Please choose an audio file, select a demo, or record audio first."
+            coroutineScope.launch {
+                val pickedFile = DesktopAudioPicker.pickAudioFile()
+                if (pickedFile != null) {
+                    handleStartAnalysis(pickedFile)
+                }
+            }
             return
         }
 
@@ -339,28 +607,8 @@ fun AiAudioTabScreen(
         }
     }
 
-    // Modern Native File Picker Launcher (Windows 11 Dark Common Item Dialog / macOS / Linux)
-    val audioPickerLauncher = rememberFilePickerLauncher(
-        type = PickerType.File(extensions = listOf("mp3", "wav", "flac", "m4a", "aac", "ogg", "aif", "aiff", "au")),
-        title = "Select Audio File (MP3 / WAV / FLAC / M4A)"
-    ) { platformFile ->
-        platformFile?.let { pFile ->
-            val pickedFile = pFile.file
-            selectedFile = pickedFile
-            selectedDemo = null
-            micRecordedSamples = null
-            val (resolvedTitle, resolvedArtist) = resolveTitleAndArtist(pickedFile)
-            songTitle = resolvedTitle
-            artistName = resolvedArtist
-            customLyrics = ""
-            syncedLyrics = emptyList()
-            capoPosition = 0
-            pitchShiftSteps = 0
-            handleStartAnalysis(pickedFile)
-        }
-    }
-
-    fun openFilePickerAndAnalyze() {
+    // Native Desktop File Picker for Workstation Audio Import
+    fun openFilePickerAndAnalyze(reopenDialogOnCancel: Boolean = false) {
         try {
             StudioAudioPlayer.stop()
             isPlaying = false
@@ -368,11 +616,29 @@ fun AiAudioTabScreen(
             smoothPlayTimeSeconds = 0.0
             lastAudioClockSeconds = 0.0
 
-            audioPickerLauncher.launch()
+            coroutineScope.launch {
+                val pickedFile = DesktopAudioPicker.pickAudioFile()
+                if (pickedFile != null) {
+                    selectedFile = pickedFile
+                    selectedDemo = null
+                    micRecordedSamples = null
+                    val (resolvedTitle, resolvedArtist) = resolveTitleAndArtist(pickedFile)
+                    songTitle = resolvedTitle
+                    artistName = resolvedArtist
+                    customLyrics = ""
+                    syncedLyrics = emptyList()
+                    capoPosition = 0
+                    pitchShiftSteps = 0
+                    handleStartAnalysis(pickedFile)
+                } else if (reopenDialogOnCancel) {
+                    showImportDialog = true
+                }
+            }
         } catch (e: Exception) {
             errorMessage = "Could not open file picker: ${e.message}"
         }
     }
+
 
     fun simplifyChordsForBasicMode(
         rawList: List<ChordEvent>,
@@ -590,6 +856,27 @@ fun AiAudioTabScreen(
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
                             )
+                        }
+
+                        if (analysisResult != null) {
+                            Spacer(Modifier.width(8.dp))
+                            OutlinedButton(
+                                onClick = { state.resetSession() },
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, ColorCardBorder),
+                                colors = ButtonDefaults.outlinedButtonColors(containerColor = ColorSurfaceDark),
+                                contentPadding = PaddingValues(horizontal = 10.dp),
+                                modifier = Modifier.height(34.dp)
+                            ) {
+                                Icon(Icons.Default.Refresh, contentDescription = "New Song", tint = ColorTextSecondary, modifier = Modifier.size(14.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    text = "New Song",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = ColorTextSecondary
+                                )
+                            }
                         }
 
                         Spacer(Modifier.width(16.dp))
@@ -935,17 +1222,9 @@ fun AiAudioTabScreen(
             Dialog(onDismissRequest = { if (!isAnalyzing) showImportDialog = false }) {
                 StudioImportModal(
                     selectedFile = selectedFile,
-                    onSelectFile = { file ->
-                        selectedFile = file
-                        selectedDemo = null
-                        micRecordedSamples = null
-                        val (resolvedTitle, resolvedArtist) = resolveTitleAndArtist(file)
-                        songTitle = resolvedTitle
-                        artistName = resolvedArtist
-                        customLyrics = ""
-                        syncedLyrics = emptyList()
+                    onBrowseClick = {
                         showImportDialog = false
-                        handleStartAnalysis(file)
+                        openFilePickerAndAnalyze(reopenDialogOnCancel = true)
                     },
                     isRecordingMic = isRecordingMic,
                     micRecordingTime = micRecordingTimeSeconds,
@@ -1056,32 +1335,61 @@ fun AiAudioTabScreen(
                     coroutineScope.launch {
                         isTranscribingLyricsAi = true
                         aiTranscribeErrorText = null
-                        aiLyricsProgressText = "Initializing Whisper AI..."
-                        val res = withContext(Dispatchers.IO) {
-                            LyricsExtractor.transcribeWithAi(
-                                audioFile = selectedFile,
-                                audioSamples = currentAudioSamples ?: micRecordedSamples,
-                                modelName = model,
-                                language = lang,
-                                onProgress = { p ->
-                                    aiLyricsProgressText = p
-                                }
-                            )
-                        }
-                        isTranscribingLyricsAi = false
-                        if (res != null) {
-                            customLyrics = res.toLrcOrPlainText()
-                            syncedLyrics = res.syncedLyrics
-                            aiTranscribeErrorText = null
-                        } else {
-                            val detail = LyricsExtractor.lastError
-                            aiTranscribeErrorText = if (!detail.isNullOrBlank()) detail
-                                else "No lyrics could be extracted. The track may be instrumental or audio quality is low."
+                        aiLyricsProgressText = "Analyzing vocal sound wave..."
+                        aiTranscribeProgress = 0.03f
+                        aiTranscribeStartMs = System.currentTimeMillis()
+                        try {
+                            val res = withContext(Dispatchers.IO) {
+                                LyricsExtractor.transcribeWithAi(
+                                    audioFile = selectedFile,
+                                    audioSamples = currentAudioSamples ?: micRecordedSamples,
+                                    modelName = model,
+                                    language = lang,
+                                    hintTitle = songTitle.takeIf { it.isNotBlank() },
+                                    hintArtist = artistName.takeIf { it.isNotBlank() },
+                                    onProgress = { p ->
+                                        if (p.startsWith("PROGRESS:")) {
+                                            val raw = p.removePrefix("PROGRESS:")
+                                            val parts = raw.split(":", limit = 3)
+                                            if (parts.size == 2) {
+                                                val frac = parts[0].toFloatOrNull() ?: 0f
+                                                val label = parts[1]
+                                                aiTranscribeProgress = frac.coerceIn(0.01f, 0.99f)
+                                                aiLyricsProgressText = label
+                                            } else if (parts.size >= 3) {
+                                                val v1 = parts[0].toFloatOrNull() ?: 0f
+                                                val v2 = parts[1].toFloatOrNull() ?: 0f
+                                                val label = parts[2]
+                                                val frac = if (v2 > 0f) (v1 / v2) else v1
+                                                aiTranscribeProgress = frac.coerceIn(0.01f, 0.99f)
+                                                aiLyricsProgressText = label
+                                            }
+                                        } else {
+                                            aiLyricsProgressText = p
+                                        }
+                                    }
+                                )
+                            }
+                            if (res != null) {
+                                customLyrics = res.toLrcOrPlainText()
+                                syncedLyrics = res.syncedLyrics
+                                aiTranscribeErrorText = null
+                            } else {
+                                val detail = LyricsExtractor.lastError
+                                aiTranscribeErrorText = if (!detail.isNullOrBlank()) detail
+                                    else "No lyrics could be extracted. The track may be instrumental or audio quality is low."
+                            }
+                        } catch (e: Exception) {
+                            aiTranscribeErrorText = "Transcription failed: ${e.message}"
+                        } finally {
+                            isTranscribingLyricsAi = false
                         }
                     }
                 },
                 isTranscribingAi = isTranscribingLyricsAi,
                 aiProgressText = aiLyricsProgressText,
+                aiTranscribeProgress = aiTranscribeProgress,
+                aiTranscribeStartMs = aiTranscribeStartMs,
                 aiTranscribeError = aiTranscribeErrorText,
                 audioSourceAvailable = selectedFile != null || currentAudioSamples != null || micRecordedSamples != null,
                 onClose = { showLyricsDrawer = false; aiTranscribeErrorText = null }
@@ -1935,6 +2243,7 @@ fun StudioChordCard(
     val shape = shapes.getOrElse(voicingIndex.coerceIn(0, shapes.size - 1)) {
         ChordShape(chordName, "Guitar", listOf(0, 2, 2, 1, 0, 0))
     }
+    val coroutineScope = rememberCoroutineScope()
 
     val baseFret = if (showPositions) shape.baseFret.coerceAtLeast(1) else 1
     val stringNotes = remember(shape, chordName) {
@@ -1960,7 +2269,7 @@ fun StudioChordCard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // 1. Header: Chord Name in Cyan + Fret Number on Right (Matching ss2)
+            // 1. Header: Chord Name in Cyan + Round Speaker Button (and Fret Number if > 1)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1973,13 +2282,47 @@ fun StudioChordCard(
                     color = Color(0xFF38BDF8) // Mint / Cyan
                 )
 
-                if (baseFret > 1) {
-                    Text(
-                        text = "$baseFret",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
-                        color = Color(0xFFCBD5E1)
-                    )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (baseFret > 1) {
+                        Text(
+                            text = "$baseFret",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = Color(0xFFCBD5E1)
+                        )
+                    }
+
+                    // Round speaker button in the corner - only plays chord sound when pressed
+                    Surface(
+                        onClick = {
+                            MusicTheoryAudioPlayer.strumChord(
+                                shape = shape,
+                                instrument = LearnInstrument.GUITAR,
+                                scope = coroutineScope
+                            )
+                        },
+                        shape = CircleShape,
+                        color = if (isCurrent) Color(0xFF38BDF8).copy(alpha = 0.18f) else Color(0xFF1E293B),
+                        border = BorderStroke(
+                            1.dp,
+                            if (isCurrent) Color(0xFF38BDF8).copy(alpha = 0.5f) else Color(0xFF334155)
+                        ),
+                        modifier = Modifier
+                            .size(28.dp)
+                            .pointerHoverIcon(PointerIcon.Hand)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.VolumeUp,
+                                contentDescription = "Play $chordName chord sound",
+                                tint = if (isCurrent) Color(0xFF38BDF8) else Color(0xFF94A3B8),
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                    }
                 }
             }
 
@@ -2457,7 +2800,7 @@ fun StudioBottomConsole(
 @Composable
 fun StudioImportModal(
     selectedFile: File?,
-    onSelectFile: (File) -> Unit,
+    onBrowseClick: () -> Unit,
     isRecordingMic: Boolean,
     micRecordingTime: Int,
     onToggleMic: () -> Unit,
@@ -2469,14 +2812,6 @@ fun StudioImportModal(
     onStartAnalysis: () -> Unit,
     onClose: () -> Unit
 ) {
-    val modalAudioPickerLauncher = rememberFilePickerLauncher(
-        type = PickerType.File(extensions = listOf("mp3", "wav", "flac", "m4a", "aac", "ogg", "aif", "aiff", "au")),
-        title = "Select Audio File (MP3 / WAV / FLAC / M4A)"
-    ) { platformFile ->
-        platformFile?.let { pFile ->
-            onSelectFile(pFile.file)
-        }
-    }
 
     Card(
         shape = RoundedCornerShape(20.dp),
@@ -2508,9 +2843,7 @@ fun StudioImportModal(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Card(
-                    onClick = {
-                        modalAudioPickerLauncher.launch()
-                    },
+                    onClick = onBrowseClick,
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = if (selectedFile != null) Color(0xFF1E2638) else Color(0xFF161A26)
@@ -2600,7 +2933,13 @@ fun StudioImportModal(
 
             // Run Button
             Button(
-                onClick = onStartAnalysis,
+                onClick = {
+                    if (selectedFile != null || isRecordingMic) {
+                        onStartAnalysis()
+                    } else {
+                        onBrowseClick()
+                    }
+                },
                 enabled = !isAnalyzing && !isRecordingMic,
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
@@ -2645,6 +2984,8 @@ fun StudioLyricsModal(
     onTranscribeAi: (modelName: String, language: String) -> Unit,
     isTranscribingAi: Boolean,
     aiProgressText: String,
+    aiTranscribeProgress: Float = 0f,
+    aiTranscribeStartMs: Long = 0L,
     aiTranscribeError: String? = null,
     audioSourceAvailable: Boolean,
     onClose: () -> Unit
@@ -2659,8 +3000,17 @@ fun StudioLyricsModal(
     var searchArtist by remember(artistName) {
         mutableStateOf(if (artistName != "Local Audio File" && artistName != "Detected Audio") artistName else "")
     }
-    var selectedModel by remember { mutableStateOf("tiny") }
+    val settings by DesktopDatabase.instance.settingsFlow.collectAsState()
+    var selectedModel by remember {
+        mutableStateOf(
+            if (WhisperModelManager.isModelInstalled(settings.preferredWhisperModel)) settings.preferredWhisperModel
+            else if (WhisperModelManager.isModelInstalled("base")) "base"
+            else WhisperModelManager.getInstalledModels().firstOrNull()?.id ?: "base"
+        )
+    }
     var selectedLanguage by remember { mutableStateOf("auto") }
+    var showLanguagePickerModal by remember { mutableStateOf(false) }
+    var showScriptConverterModal by remember { mutableStateOf(false) }
     var aiTabError by remember(aiTranscribeError) { mutableStateOf(aiTranscribeError) }
     var cleanNoticeMessage by remember { mutableStateOf<String?>(null) }
     var onlineSearchResults by remember { mutableStateOf<List<ExtractedLyricsResult>>(emptyList()) }
@@ -2676,6 +3026,20 @@ fun StudioLyricsModal(
     // Clear AI error when transcription starts
     LaunchedEffect(isTranscribingAi) {
         if (isTranscribingAi) aiTabError = null
+    }
+
+    // Automatically switch to SYNCED tab as soon as transcription completes and lyrics are available
+    var wasTranscribing by remember { mutableStateOf(false) }
+    LaunchedEffect(isTranscribingAi, syncedLyrics) {
+        if (wasTranscribing && !isTranscribingAi && syncedLyrics.isNotEmpty()) {
+            activeTab = "SYNCED"
+        }
+        wasTranscribing = isTranscribingAi
+    }
+
+    // Keep editableLyrics in sync whenever lyricsText updates
+    LaunchedEffect(lyricsText) {
+        editableLyrics = LyricsExtractor.cleanAndDeduplicateLyrics(lyricsText)
     }
 
     val listState = rememberLazyListState()
@@ -2873,45 +3237,47 @@ fun StudioLyricsModal(
                                     }
                                 }
 
-                                LazyColumn(
-                                    state = listState,
-                                    modifier = Modifier.fillMaxSize(),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    itemsIndexed(syncedLyrics) { index, line ->
-                                        val isActive = index == activeIdx
-                                        val mm = (line.timestampSeconds / 60).toInt()
-                                        val ss = (line.timestampSeconds % 60).toInt()
-                                        val timeStr = "%02d:%02d".format(mm, ss)
+                                Column(modifier = Modifier.fillMaxSize()) {
+                                    LazyColumn(
+                                        state = listState,
+                                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        itemsIndexed(syncedLyrics) { index, line ->
+                                            val isActive = index == activeIdx
+                                            val mm = (line.timestampSeconds / 60).toInt()
+                                            val ss = (line.timestampSeconds % 60).toInt()
+                                            val timeStr = "%02d:%02d".format(mm, ss)
 
-                                        Surface(
-                                            onClick = { onSeekTo(line.timestampSeconds) },
-                                            shape = RoundedCornerShape(8.dp),
-                                            color = if (isActive) Color(0xFF1E3A8A).copy(alpha = 0.5f) else Color.Transparent,
-                                            border = if (isActive) BorderStroke(1.dp, Color(0xFF3B82F6).copy(alpha = 0.6f)) else null,
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
-                                                verticalAlignment = Alignment.CenterVertically
+                                            Surface(
+                                                onClick = { onSeekTo(line.timestampSeconds) },
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = if (isActive) Color(0xFF1E3A8A).copy(alpha = 0.5f) else Color.Transparent,
+                                                border = if (isActive) BorderStroke(1.dp, Color(0xFF3B82F6).copy(alpha = 0.6f)) else null,
+                                                modifier = Modifier.fillMaxWidth()
                                             ) {
-                                                Text(
-                                                    text = timeStr,
-                                                    fontSize = 11.sp,
-                                                    fontFamily = FontFamily.Monospace,
-                                                    color = if (isActive) Color(0xFF38BDF8) else Color(0xFF475569),
-                                                    modifier = Modifier.width(44.dp)
-                                                )
-                                                Spacer(Modifier.width(8.dp))
-                                                Text(
-                                                    text = line.text,
-                                                    fontSize = if (isActive) 14.5.sp else 13.sp,
-                                                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
-                                                    color = if (isActive) Color.White else Color(0xFF94A3B8),
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                                if (isActive) {
-                                                    Icon(Icons.Default.VolumeUp, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(15.dp))
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(
+                                                        text = timeStr,
+                                                        fontSize = 11.sp,
+                                                        fontFamily = FontFamily.Monospace,
+                                                        color = if (isActive) Color(0xFF38BDF8) else Color(0xFF475569),
+                                                        modifier = Modifier.width(44.dp)
+                                                    )
+                                                    Spacer(Modifier.width(8.dp))
+                                                    Text(
+                                                        text = line.text,
+                                                        fontSize = if (isActive) 14.5.sp else 13.sp,
+                                                        fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                                                        color = if (isActive) Color.White else Color(0xFF94A3B8),
+                                                        modifier = Modifier.weight(1f)
+                                                    )
+                                                    if (isActive) {
+                                                        Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(15.dp))
+                                                    }
                                                 }
                                             }
                                         }
@@ -2921,6 +3287,22 @@ fun StudioLyricsModal(
                         }
 
                         "PLAIN" -> {
+                            val currentDetectedScript = remember(editableLyrics) {
+                                PhoneticTransliterator.detectDominantScript(editableLyrics)
+                            }
+                            val currentDetectedLabel = remember(currentDetectedScript) {
+                                when (currentDetectedScript) {
+                                    "devanagari" -> "Hindi / Devanagari (हिन्दी)"
+                                    "bengali" -> "Bengali / Bangla (বাংলা)"
+                                    "urdu" -> "Urdu (اردو)"
+                                    "gurmukhi" -> "Punjabi / Gurmukhi (ਗੁਰਮੁਖੀ)"
+                                    "gujarati" -> "Gujarati (ગુજરાતી)"
+                                    "tamil" -> "Tamil (தமிழ்)"
+                                    "telugu" -> "Telugu (తెలుగు)"
+                                    else -> "English / Roman Script"
+                                }
+                            }
+
                             Column(modifier = Modifier.fillMaxSize()) {
                                 // Utility Toolbar
                                 Row(
@@ -2944,17 +3326,178 @@ fun StudioLyricsModal(
                                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                             )
                                         }
-                                        if (cleanNoticeMessage != null) {
-                                            Text(
-                                                text = cleanNoticeMessage ?: "",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = Color(0xFF34D399)
-                                            )
-                                        }
                                     }
 
                                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                         // Context-Aware Universal Script Converter Menu
+                                         var showHybridMenu by remember { mutableStateOf(false) }
+
+                                         // Generate only supported conversion targets from the detected script
+                                         val supportedTargetOptions = remember(currentDetectedScript) {
+                                             when (currentDetectedScript) {
+                                                 "roman" -> listOf(
+                                                     Triple("devanagari", "→ Hindi / Devanagari (हिन्दी)", "Phonetic letters: e.g. tum hi ho → तुम ही हो"),
+                                                     Triple("bengali", "→ Bengali / Bangla (বাংলা)", "Phonetic letters: e.g. ami tomay → আমি তোমায়"),
+                                                     Triple("urdu", "→ Urdu (اردو)", "Phonetic letters: e.g. tum hi ho → تم ہی ہو"),
+                                                     Triple("gurmukhi", "→ Punjabi / Gurmukhi (ਗੁਰਮੁਖੀ)", "Phonetic letters: e.g. sat sri akal → ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ"),
+                                                     Triple("gujarati", "→ Gujarati (ગુજરાતી)", "Phonetic letters: e.g. kem cho → કેમ છો")
+                                                 )
+                                                 "devanagari" -> listOf(
+                                                     Triple("bengali", "→ Bengali / Bangla (বাংলা)", "Letters only: e.g. तुम ही हो → তুম হী হো"),
+                                                     Triple("urdu", "→ Urdu (اردو)", "Letters only: e.g. तुम ही हो → تم ہی ہو"),
+                                                     Triple("roman", "→ Roman English (Hinglish)", "Sing-along phonetic: e.g. तुम ही हो → Tum hi ho"),
+                                                     Triple("gurmukhi", "→ Punjabi / Gurmukhi (ਗੁਰਮੁਖੀ)", "Letters only: e.g. तुम ही हो → ਤੁਮ ਹੀ ਹੋ"),
+                                                     Triple("gujarati", "→ Gujarati (ગુજરાતી)", "Letters only: e.g. तुम ही हो → તુમ હી હો"),
+                                                     Triple("tamil", "→ Tamil (தமிழ்)", "Letters only"),
+                                                     Triple("telugu", "→ Telugu (తెలుగు)", "Letters only")
+                                                 )
+                                                 "bengali" -> listOf(
+                                                     Triple("devanagari", "→ Hindi / Devanagari (हिन्दी)", "Letters only: e.g. আমি তোমায় → आमी तोमाय"),
+                                                     Triple("urdu", "→ Urdu (اردو)", "Letters only: e.g. আমি তোমায় → آمی تومای"),
+                                                     Triple("roman", "→ Roman English (Benglish)", "Sing-along phonetic: e.g. আমি তোমায় → Ami tomay"),
+                                                     Triple("gurmukhi", "→ Punjabi / Gurmukhi (ਗੁਰਮੁਖੀ)", "Letters only: e.g. আমি তোমায় → ਆਮੀ ਤੋਮਾਯ"),
+                                                     Triple("gujarati", "→ Gujarati (ગુજરાતી)", "Letters only")
+                                                 )
+                                                 "urdu" -> listOf(
+                                                     Triple("devanagari", "→ Hindi / Devanagari (हिन्दी)", "Letters only: e.g. تم ہی ہو → तुम ही हो"),
+                                                     Triple("bengali", "→ Bengali / Bangla (বাংলা)", "Letters only: e.g. تم ہی ہو → তুম হী হো"),
+                                                     Triple("roman", "→ Roman English (Urdu Roman)", "Sing-along phonetic: e.g. تم ہی ہو → Tum hi ho"),
+                                                     Triple("gurmukhi", "→ Punjabi / Gurmukhi (ਗੁਰਮੁਖੀ)", "Letters only: e.g. تم ہی ہو → ਤੁਮ ਹੀ ਹੋ"),
+                                                     Triple("gujarati", "→ Gujarati (ગુજરાતી)", "Letters only")
+                                                 )
+                                                 "gurmukhi" -> listOf(
+                                                     Triple("devanagari", "→ Hindi / Devanagari (हिन्दी)", "Letters only: e.g. ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ → सति स्री अकाल"),
+                                                     Triple("bengali", "→ Bengali / Bangla (বাংলা)", "Letters only: e.g. ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ → সতি স্রী অকাল"),
+                                                     Triple("urdu", "→ Urdu (اردو)", "Letters only: e.g. ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ → ست سری اکال"),
+                                                     Triple("roman", "→ Roman English (Pinglish)", "Sing-along phonetic: e.g. ਪੰਜਾਬੀ → Punjabi")
+                                                 )
+                                                 "gujarati" -> listOf(
+                                                     Triple("devanagari", "→ Hindi / Devanagari (हिन्दी)", "Letters only"),
+                                                     Triple("bengali", "→ Bengali / Bangla (বাংলা)", "Letters only"),
+                                                     Triple("urdu", "→ Urdu (اردو)", "Letters only"),
+                                                     Triple("roman", "→ Roman English", "Sing-along phonetic")
+                                                 )
+                                                 "tamil" -> listOf(
+                                                     Triple("roman", "→ Roman English (Tanglish)", "Sing-along phonetic: e.g. தமிழ் → Tamil"),
+                                                     Triple("devanagari", "→ Hindi / Devanagari (हिन्दी)", "Letters only"),
+                                                     Triple("telugu", "→ Telugu (తెలుగు)", "Letters only")
+                                                 )
+                                                 "telugu" -> listOf(
+                                                     Triple("roman", "→ Roman English", "Sing-along phonetic"),
+                                                     Triple("devanagari", "→ Hindi / Devanagari (हिन्दी)", "Letters only"),
+                                                     Triple("tamil", "→ Tamil (தமிழ்)", "Letters only")
+                                                 )
+                                                 else -> listOf(
+                                                     Triple("devanagari", "→ Hindi / Devanagari (हिन्दी)", "Phonetic letters"),
+                                                     Triple("bengali", "→ Bengali / Bangla (বাংলা)", "Phonetic letters"),
+                                                     Triple("urdu", "→ Urdu (اردو)", "Phonetic letters")
+                                                 )
+                                             }
+                                         }
+
+                                         Box {
+                                             OutlinedButton(
+                                                 onClick = { showHybridMenu = true },
+                                                 shape = RoundedCornerShape(6.dp),
+                                                 contentPadding = PaddingValues(horizontal = 9.dp, vertical = 4.dp),
+                                                 modifier = Modifier.height(28.dp),
+                                                 border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.65f)),
+                                                 colors = ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF78350F).copy(alpha = 0.25f))
+                                             ) {
+                                                 Icon(Icons.Default.Translate, contentDescription = null, tint = Color(0xFFFBBF24), modifier = Modifier.size(13.dp))
+                                                 Spacer(Modifier.width(5.dp))
+                                                 Text("Script Converter", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFFEF3C7))
+                                                 Spacer(Modifier.width(4.dp))
+                                                 Surface(
+                                                     shape = RoundedCornerShape(3.dp),
+                                                     color = Color(0xFFF59E0B).copy(alpha = 0.35f),
+                                                     border = BorderStroke(0.5.dp, Color(0xFFFBBF24))
+                                                 ) {
+                                                     Text(
+                                                         text = "BETA",
+                                                         fontSize = 8.5.sp,
+                                                         fontWeight = FontWeight.Bold,
+                                                         color = Color(0xFFFDE68A),
+                                                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 0.5.dp)
+                                                     )
+                                                 }
+                                                 Spacer(Modifier.width(2.dp))
+                                                 Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color(0xFFFBBF24), modifier = Modifier.size(14.dp))
+                                             }
+
+                                             DropdownMenu(
+                                                 expanded = showHybridMenu,
+                                                 onDismissRequest = { showHybridMenu = false },
+                                                 modifier = Modifier
+                                                     .background(Color(0xFF1E2438))
+                                                     .border(1.dp, Color(0xFF334155), RoundedCornerShape(8.dp))
+                                             ) {
+                                                 // Detected Script Header
+                                                 Box(
+                                                     modifier = Modifier
+                                                         .fillMaxWidth()
+                                                         .background(Color(0xFF0F172A))
+                                                         .padding(horizontal = 12.dp, vertical = 6.dp)
+                                                 ) {
+                                                     Row(verticalAlignment = Alignment.CenterVertically) {
+                                                         Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(13.dp))
+                                                         Spacer(Modifier.width(6.dp))
+                                                         Text(
+                                                             text = "Detected: $currentDetectedLabel",
+                                                             fontSize = 11.sp,
+                                                             fontWeight = FontWeight.Bold,
+                                                             color = Color(0xFF38BDF8)
+                                                         )
+                                                     }
+                                                 }
+                                                 HorizontalDivider(color = Color(0xFF2E3856))
+
+                                                 // Section Title
+                                                 Box(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+                                                     Text("SUPPORTED CONVERSIONS (LETTERS ONLY):", fontSize = 9.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFBBF24))
+                                                 }
+
+                                                 // Dynamic Supported Options
+                                                 supportedTargetOptions.forEach { (targetId, title, sub) ->
+                                                     DropdownMenuItem(
+                                                         text = {
+                                                             Column {
+                                                                 Text(title, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = Color(0xFFF1F5F9))
+                                                                 Text(sub, fontSize = 10.5.sp, color = Color(0xFF94A3B8))
+                                                             }
+                                                         },
+                                                         onClick = {
+                                                             showHybridMenu = false
+                                                             val converted = PhoneticTransliterator.convertScript(editableLyrics, currentDetectedScript, targetId)
+                                                             editableLyrics = converted
+                                                             onUpdateLyrics(converted)
+                                                             cleanNoticeMessage = "Converted to $title"
+                                                         }
+                                                     )
+                                                 }
+
+                                                 HorizontalDivider(color = Color(0xFF2E3856))
+
+                                                 // Studio Dialog Option
+                                                 DropdownMenuItem(
+                                                     text = {
+                                                         Row(verticalAlignment = Alignment.CenterVertically) {
+                                                             Icon(Icons.Default.Tune, contentDescription = null, tint = Color(0xFF818CF8), modifier = Modifier.size(15.dp))
+                                                             Spacer(Modifier.width(8.dp))
+                                                             Column {
+                                                                 Text("⚙ Custom Script Converter Studio...", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF818CF8))
+                                                                 Text("Custom source & target pair with live preview", fontSize = 10.sp, color = Color(0xFF94A3B8))
+                                                             }
+                                                         }
+                                                     },
+                                                     onClick = {
+                                                         showHybridMenu = false
+                                                         showScriptConverterModal = true
+                                                     }
+                                                 )
+                                             }
+                                         }
+
                                         // Clean & Deduplicate Button
                                         OutlinedButton(
                                             onClick = {
@@ -3046,11 +3589,38 @@ fun StudioLyricsModal(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        text = "Chords will automatically align with lyric lines upon saving.",
-                                        fontSize = 11.5.sp,
-                                        color = Color(0xFF64748B)
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f).padding(end = 12.dp)
+                                    ) {
+                                        if (cleanNoticeMessage != null) {
+                                            Surface(
+                                                shape = RoundedCornerShape(6.dp),
+                                                color = Color(0xFF065F46).copy(alpha = 0.35f),
+                                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.5f))
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                                ) {
+                                                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color(0xFF34D399), modifier = Modifier.size(13.dp))
+                                                    Spacer(Modifier.width(5.dp))
+                                                    Text(
+                                                        text = cleanNoticeMessage ?: "",
+                                                        fontSize = 11.5.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = Color(0xFF34D399)
+                                                    )
+                                                }
+                                            }
+                                            Spacer(Modifier.width(10.dp))
+                                        }
+                                        Text(
+                                            text = "Chords will automatically align with lyric lines upon saving.",
+                                            fontSize = 11.5.sp,
+                                            color = Color(0xFF64748B)
+                                        )
+                                    }
 
                                     Button(
                                         onClick = {
@@ -3177,7 +3747,7 @@ fun StudioLyricsModal(
                                                 modifier = Modifier.fillMaxWidth()
                                             ) {
                                                 Row(
-                                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
                                                     horizontalArrangement = Arrangement.SpaceBetween,
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
@@ -3259,7 +3829,7 @@ fun StudioLyricsModal(
                                                 ) {
                                                     Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(13.dp))
                                                     Spacer(Modifier.width(5.dp))
-                                                    Text("Transcribe with AI (Whisper) →", fontSize = 11.5.sp)
+                                                    Text("Transcribe with AI →", fontSize = 11.5.sp)
                                                 }
 
                                                 OutlinedButton(
@@ -3306,9 +3876,25 @@ fun StudioLyricsModal(
                                         }
                                         Spacer(Modifier.width(12.dp))
                                         Column(verticalArrangement = Arrangement.Center) {
-                                            Text("AI Vocal Transcriber (whisper.cpp)", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFFF1F5F9))
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text("AI Vocal Transcribe", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color(0xFFF1F5F9))
+                                                Spacer(Modifier.width(8.dp))
+                                                Surface(
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    color = Color(0xFF4F46E5).copy(alpha = 0.20f),
+                                                    border = BorderStroke(1.dp, Color(0xFF6366F1).copy(alpha = 0.50f))
+                                                ) {
+                                                    Text(
+                                                        text = "BETA",
+                                                        fontSize = 9.5.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color(0xFFA5B4FC),
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
                                             Spacer(Modifier.height(2.dp))
-                                            Text("Extracts time-synced lyrics directly from vocals using local Whisper AI.", fontSize = 11.5.sp, color = Color(0xFF94A3B8))
+                                            Text("Extracts time-synced lyrics directly from vocals using local AI.", fontSize = 11.5.sp, color = Color(0xFF94A3B8))
                                         }
                                     }
                                 }
@@ -3338,101 +3924,398 @@ fun StudioLyricsModal(
                                     }
                                 }
 
-                                // Model & Language Selector (Proportional weights for balanced button widths)
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    // Model (2 options)
-                                    Column(modifier = Modifier.weight(0.44f)) {
-                                        Text("Whisper Model", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF94A3B8))
-                                        Spacer(Modifier.height(6.dp))
-                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            listOf("tiny" to "Tiny (Fast)", "base" to "Base (Std)").forEach { (mod, label) ->
-                                                val isSel = selectedModel == mod
-                                                Surface(
-                                                    onClick = { selectedModel = mod },
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    color = if (isSel) Color(0xFF312E81) else Color(0xFF161A28),
-                                                    border = BorderStroke(1.dp, if (isSel) Color(0xFF6366F1) else Color(0xFF23283B)),
-                                                    modifier = Modifier.weight(1f).height(34.dp)
-                                                ) {
-                                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                                        Text(
-                                                            text = label,
-                                                            fontSize = 11.5.sp,
-                                                            lineHeight = 11.5.sp,
-                                                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                                                            color = if (isSel) Color(0xFFC7D2FE) else Color(0xFF94A3B8),
-                                                            textAlign = TextAlign.Center
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
+                                // Model & Language Selector
+                                val modelsVersion by WhisperModelManager.modelsVersion.collectAsState()
+                                val downloadProgress by WhisperModelManager.downloadProgress.collectAsState()
+                                val downloadStatusText by WhisperModelManager.downloadStatusText.collectAsState()
 
-                                    // Language (4 options)
-                                    Column(modifier = Modifier.weight(0.56f)) {
-                                        Text("Language", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF94A3B8))
-                                        Spacer(Modifier.height(6.dp))
-                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                            listOf("auto" to "Auto", "en" to "EN", "hi" to "HI", "bn" to "BN").forEach { (lang, label) ->
-                                                val isSel = selectedLanguage == lang
-                                                Surface(
-                                                    onClick = { selectedLanguage = lang },
-                                                    shape = RoundedCornerShape(8.dp),
-                                                    color = if (isSel) Color(0xFF312E81) else Color(0xFF161A28),
-                                                    border = BorderStroke(1.dp, if (isSel) Color(0xFF6366F1) else Color(0xFF23283B)),
-                                                    modifier = Modifier.weight(1f).height(34.dp)
-                                                ) {
-                                                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                                        Text(
-                                                            text = label,
-                                                            fontSize = 11.5.sp,
-                                                            lineHeight = 11.5.sp,
-                                                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                                                            color = if (isSel) Color(0xFFC7D2FE) else Color(0xFF94A3B8),
-                                                            textAlign = TextAlign.Center
-                                                        )
-                                                    }
-                                                }
-                                            }
+                                val modelOptions = remember {
+                                    WhisperModelManager.AVAILABLE_MODELS.map { mod ->
+                                        val label = when (mod.id) {
+                                            "base" -> "Base (Fast)"
+                                            "small" -> "Small (Balanced)"
+                                            "medium" -> "Medium (Studio)"
+                                            "large-v3-turbo" -> "Turbo (Speed)"
+                                            "large-v3", "large" -> "Large (Max)"
+                                            else -> mod.name
                                         }
+                                        mod to label
                                     }
                                 }
 
-                                // Audio Source Status
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = if (audioSourceAvailable) Color(0xFF064E3B).copy(alpha = 0.25f) else Color(0xFF7F1D1D).copy(alpha = 0.25f),
-                                    border = BorderStroke(1.dp, if (audioSourceAvailable) Color(0xFF059669) else Color(0xFFDC2626)),
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
+                                Column(modifier = Modifier.fillMaxWidth()) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(
-                                            if (audioSourceAvailable) Icons.Default.CheckCircle else Icons.Default.Warning,
-                                            contentDescription = null,
-                                            tint = if (audioSourceAvailable) Color(0xFF34D399) else Color(0xFFF87171),
-                                            modifier = Modifier.size(16.dp)
-                                        )
-                                        Spacer(Modifier.width(10.dp))
-                                        Text(
-                                            text = if (audioSourceAvailable) "Audio sound wave loaded and ready for AI processing" else "No audio source loaded yet",
-                                            fontSize = 12.sp,
-                                            lineHeight = 12.sp,
-                                            fontWeight = FontWeight.Medium,
-                                            color = if (audioSourceAvailable) Color(0xFFA7F3D0) else Color(0xFFFECACA)
-                                        )
+                                        Text("AI Model", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF94A3B8))
+                                        Text("Manage / Download in Settings → Audio & AI", fontSize = 10.5.sp, color = Color(0xFF64748B))
+                                    }
+                                    Spacer(Modifier.height(6.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        modelOptions.forEach { (mod, label) ->
+                                            val isSel = selectedModel == mod.id
+                                            val isInstalled = remember(modelsVersion, mod.id) { WhisperModelManager.isModelInstalled(mod.id) }
+                                            val isDownloading = remember(downloadProgress, mod.id) { WhisperModelManager.isDownloading(mod.id) }
+
+                                            Surface(
+                                                onClick = { selectedModel = mod.id },
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = if (isSel) Color(0xFF312E81) else Color(0xFF161A28),
+                                                border = BorderStroke(
+                                                    1.dp,
+                                                    if (isSel) Color(0xFF6366F1)
+                                                    else if (!isInstalled) Color(0xFF23283B).copy(alpha = 0.65f)
+                                                    else Color(0xFF23283B)
+                                                ),
+                                                modifier = Modifier.weight(1f).height(32.dp)
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.Center,
+                                                    modifier = Modifier.fillMaxSize().padding(horizontal = 2.dp)
+                                                ) {
+                                                    if (isDownloading) {
+                                                        CircularProgressIndicator(
+                                                            strokeWidth = 1.5.dp,
+                                                            color = Color(0xFF818CF8),
+                                                            modifier = Modifier.size(10.dp)
+                                                        )
+                                                        Spacer(Modifier.width(3.dp))
+                                                    } else if (!isInstalled) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.Download,
+                                                            contentDescription = "Not installed",
+                                                            tint = if (isSel) Color(0xFFA5B4FC) else Color(0xFF64748B),
+                                                            modifier = Modifier.size(11.dp)
+                                                        )
+                                                        Spacer(Modifier.width(2.dp))
+                                                    }
+                                                    Text(
+                                                        text = label,
+                                                        fontSize = 11.sp,
+                                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                                        color = if (isSel) Color(0xFFC7D2FE) else if (isInstalled) Color(0xFF94A3B8) else Color(0xFF64748B),
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
+                                                        textAlign = TextAlign.Center
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    val selectedModelInfo = remember(selectedModel) {
+                                        WhisperModelManager.AVAILABLE_MODELS.firstOrNull { it.id == selectedModel }
+                                    }
+                                    val isSelectedInstalled = remember(modelsVersion, selectedModel) {
+                                        WhisperModelManager.isModelInstalled(selectedModel)
+                                    }
+                                    val isSelectedDownloading = WhisperModelManager.isDownloading(selectedModel)
+
+                                    if (selectedModelInfo != null && !isSelectedInstalled) {
+                                        Spacer(Modifier.height(8.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = Color(0xFF1E1B4B).copy(alpha = 0.55f),
+                                            border = BorderStroke(1.dp, Color(0xFF4338CA).copy(alpha = 0.65f)),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false)) {
+                                                        Text(
+                                                            text = "${selectedModelInfo.name} (Not Installed)",
+                                                            fontWeight = FontWeight.SemiBold,
+                                                            fontSize = 11.5.sp,
+                                                            color = Color(0xFFA5B4FC)
+                                                        )
+                                                        Spacer(Modifier.width(6.dp))
+                                                        Surface(
+                                                            shape = RoundedCornerShape(4.dp),
+                                                            color = Color(0xFF312E81),
+                                                            modifier = Modifier.height(18.dp)
+                                                        ) {
+                                                            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 6.dp)) {
+                                                                Text(
+                                                                    text = selectedModelInfo.sizeText,
+                                                                    fontSize = 10.sp,
+                                                                    color = Color(0xFFC7D2FE),
+                                                                    fontWeight = FontWeight.Bold
+                                                                )
+                                                            }
+                                                        }
+                                                    }
+
+                                                    if (!isSelectedDownloading) {
+                                                        Button(
+                                                            onClick = {
+                                                                WhisperModelManager.startDownload(
+                                                                    model = selectedModelInfo,
+                                                                    scope = scope,
+                                                                    onSuccess = {
+                                                                        cleanNoticeMessage = "${selectedModelInfo.name} downloaded successfully and is ready to use!"
+                                                                    },
+                                                                    onError = { err ->
+                                                                        aiTabError = "Download failed: $err"
+                                                                    }
+                                                                )
+                                                            },
+                                                            shape = RoundedCornerShape(6.dp),
+                                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4F46E5)),
+                                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                                            modifier = Modifier.height(28.dp)
+                                                        ) {
+                                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                Icon(Icons.Default.Download, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+                                                                Spacer(Modifier.width(4.dp))
+                                                                Text("Download Model", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                            }
+                                                        }
+                                                    } else {
+                                                        OutlinedButton(
+                                                            onClick = { WhisperModelManager.cancelDownload(selectedModel) },
+                                                            shape = RoundedCornerShape(6.dp),
+                                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFF87171)),
+                                                            border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f)),
+                                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                                            modifier = Modifier.height(26.dp)
+                                                        ) {
+                                                            Text("Cancel", fontSize = 11.sp)
+                                                        }
+                                                    }
+                                                }
+
+                                                if (isSelectedDownloading) {
+                                                    val progress = downloadProgress[selectedModel] ?: 0.01f
+                                                    val statusText = downloadStatusText[selectedModel] ?: "Downloading model..."
+                                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            horizontalArrangement = Arrangement.SpaceBetween
+                                                        ) {
+                                                            Text(statusText, fontSize = 10.5.sp, color = Color(0xFFCBD5E1))
+                                                            Text("${(progress * 100).toInt()}%", fontSize = 10.5.sp, color = Color(0xFF818CF8), fontWeight = FontWeight.Bold)
+                                                        }
+                                                        LinearProgressIndicator(
+                                                            progress = { progress },
+                                                            modifier = Modifier.fillMaxWidth().height(4.dp),
+                                                            color = Color(0xFF6366F1),
+                                                            trackColor = Color(0xFF1E1B4B)
+                                                        )
+                                                    }
+                                                } else {
+                                                    Text(
+                                                        text = "${selectedModelInfo.description}  •  Requires ${selectedModelInfo.ramRequired}",
+                                                        fontSize = 11.sp,
+                                                        color = Color(0xFF94A3B8),
+                                                        lineHeight = 14.sp
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
 
-                                // Transcribing progress box
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    Text("Spoken Audio Language", fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF94A3B8))
+                                    Spacer(Modifier.height(6.dp))
+
+                                    // Quick-Pick Language Pills
+                                    val quickLanguages = remember(selectedLanguage) {
+                                        val base = mutableListOf(
+                                            "auto" to "Auto Detect",
+                                            "en" to "English",
+                                            "hi" to "Hindi",
+                                            "bn" to "Bengali",
+                                            "pa" to "Punjabi",
+                                            "es" to "Spanish",
+                                            "fr" to "French",
+                                            "de" to "German"
+                                        )
+                                        if (base.none { it.first.equals(selectedLanguage, ignoreCase = true) }) {
+                                            val langObj = LyricsExtractor.SUPPORTED_LANGUAGES.firstOrNull { it.code.equals(selectedLanguage, ignoreCase = true) }
+                                            if (langObj != null) {
+                                                base.add(langObj.code to langObj.displayName)
+                                            }
+                                        }
+                                        base
+                                    }
+
+                                    LazyRow(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        items(quickLanguages) { (lang, label) ->
+                                            val isSel = selectedLanguage.equals(lang, ignoreCase = true)
+
+                                            Surface(
+                                                onClick = { selectedLanguage = lang },
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = if (isSel) Color(0xFF312E81) else Color(0xFF161A28),
+                                                border = BorderStroke(
+                                                    1.dp,
+                                                    if (isSel) Color(0xFF6366F1) else Color(0xFF23283B)
+                                                ),
+                                                modifier = Modifier.height(32.dp)
+                                            ) {
+                                                Box(
+                                                    contentAlignment = Alignment.Center,
+                                                    modifier = Modifier.fillMaxHeight().padding(horizontal = 12.dp)
+                                                ) {
+                                                    Text(
+                                                        text = label,
+                                                        fontSize = 11.5.sp,
+                                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                                        color = if (isSel) Color(0xFFC7D2FE) else Color(0xFF94A3B8),
+                                                        textAlign = TextAlign.Center
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        item {
+                                            Surface(
+                                                onClick = { showLanguagePickerModal = true },
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = Color(0xFF1E2438),
+                                                border = BorderStroke(1.dp, Color(0xFF334155)),
+                                                modifier = Modifier.height(32.dp)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.fillMaxHeight().padding(horizontal = 11.dp),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.Center
+                                                ) {
+                                                    Icon(
+                                                        Icons.Default.Tune,
+                                                        contentDescription = null,
+                                                        tint = Color(0xFF94A3B8),
+                                                        modifier = Modifier.size(13.dp)
+                                                    )
+                                                    Spacer(Modifier.width(5.dp))
+                                                    Text(
+                                                        text = "+ More...",
+                                                        fontSize = 11.5.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = Color(0xFF94A3B8),
+                                                        textAlign = TextAlign.Center,
+                                                        modifier = Modifier.offset(y = (-0.5).dp)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(Modifier.height(6.dp))
+
+                                    // Contextual information banner
+                                    val currentLangInfo = remember(selectedLanguage) {
+                                        LyricsExtractor.SUPPORTED_LANGUAGES.firstOrNull { it.code.equals(selectedLanguage, ignoreCase = true) }
+                                    }
+
+                                    when (selectedLanguage.lowercase()) {
+                                        "auto" -> {
+                                            Text(
+                                                text = "Auto Detect scans actual vocal sound waves (bypassing instrumental intros) to accurately identify the singing language.",
+                                                fontSize = 10.5.sp,
+                                                color = Color(0xFF64748B)
+                                            )
+                                        }
+                                        else -> {
+                                            Text(
+                                                text = "Transcribing in ${currentLangInfo?.displayName ?: selectedLanguage} (${currentLangInfo?.nativeName ?: ""}) with specialized acoustic prompts.",
+                                                fontSize = 10.5.sp,
+                                                color = Color(0xFF818CF8)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Audio Source Status (hidden while transcribing or once transcription is complete)
+                                if (!isTranscribingAi && syncedLyrics.isEmpty()) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (audioSourceAvailable) Color(0xFF064E3B).copy(alpha = 0.25f) else Color(0xFF7F1D1D).copy(alpha = 0.25f),
+                                        border = BorderStroke(1.dp, if (audioSourceAvailable) Color(0xFF059669) else Color(0xFFDC2626)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                if (audioSourceAvailable) Icons.Default.CheckCircle else Icons.Default.Warning,
+                                                contentDescription = null,
+                                                tint = if (audioSourceAvailable) Color(0xFF34D399) else Color(0xFFF87171),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(Modifier.width(10.dp))
+                                            Text(
+                                                text = if (audioSourceAvailable) "Audio sound wave loaded and ready for AI processing" else "No audio source loaded yet",
+                                                fontSize = 12.sp,
+                                                lineHeight = 12.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = if (audioSourceAvailable) Color(0xFFA7F3D0) else Color(0xFFFECACA)
+                                            )
+                                        }
+                                    }
+                                } else if (!audioSourceAvailable && !isTranscribingAi) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = Color(0xFF7F1D1D).copy(alpha = 0.25f),
+                                        border = BorderStroke(1.dp, Color(0xFFDC2626)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                Icons.Default.Warning,
+                                                contentDescription = null,
+                                                tint = Color(0xFFF87171),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(Modifier.width(10.dp))
+                                            Text(
+                                                text = "No audio source loaded yet",
+                                                fontSize = 12.sp,
+                                                lineHeight = 12.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = Color(0xFFFECACA)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Transcribing progress box or error box
                                 if (isTranscribingAi) {
+                                    val pct = aiTranscribeProgress
+                                    val hasProgress = pct > 0.01f
+                                    // Ticker: recompose every second to update elapsed / remaining display
+                                    var tickMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+                                    LaunchedEffect(isTranscribingAi) {
+                                        while (isTranscribingAi) {
+                                            delay(1000L)
+                                            tickMs = System.currentTimeMillis()
+                                        }
+                                    }
+                                    val elapsedMs = if (aiTranscribeStartMs > 0L) tickMs - aiTranscribeStartMs else 0L
+                                    val elapsedSec = (elapsedMs / 1000L).toInt().coerceAtLeast(0)
+                                    val remainingSec = if (hasProgress && elapsedSec >= 3 && pct >= 0.05f) {
+                                        ((elapsedSec / pct) * (1f - pct)).toInt().coerceAtLeast(0)
+                                    } else null
+
+
                                     Card(
                                         shape = RoundedCornerShape(10.dp),
                                         colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1B4B)),
@@ -3440,21 +4323,133 @@ fun StudioLyricsModal(
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Column(
-                                            modifier = Modifier.padding(14.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                                            verticalArrangement = Arrangement.spacedBy(10.dp)
                                         ) {
-                                            CircularProgressIndicator(
-                                                color = Color(0xFF818CF8),
-                                                modifier = Modifier.size(24.dp),
-                                                strokeWidth = 2.5.dp
-                                            )
+                                            // Header row: icon + status label + percentage badge
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    CircularProgressIndicator(
+                                                        color = Color(0xFF818CF8),
+                                                        modifier = Modifier.size(16.dp),
+                                                        strokeWidth = 2.dp
+                                                    )
+                                                    Text(
+                                                        text = "AI Transcribing Vocals",
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = Color(0xFFE0E7FF)
+                                                    )
+                                                }
+                                                // Percentage badge
+                                                Surface(
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    color = if (hasProgress) Color(0xFF4338CA) else Color(0xFF312E81)
+                                                ) {
+                                                    Text(
+                                                        text = if (hasProgress) "${(pct * 100).toInt()}%" else "—",
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color(0xFFA5B4FC),
+                                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                            }
+
+                                            // Progress bar
+                                            if (hasProgress) {
+                                                LinearProgressIndicator(
+                                                    progress = { pct },
+                                                    color = Color(0xFF6366F1),
+                                                    trackColor = Color(0xFF312E81),
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(5.dp)
+                                                        .clip(RoundedCornerShape(3.dp))
+                                                )
+                                            } else {
+                                                LinearProgressIndicator(
+                                                    color = Color(0xFF6366F1),
+                                                    trackColor = Color(0xFF312E81),
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .height(5.dp)
+                                                        .clip(RoundedCornerShape(3.dp))
+                                                )
+                                            }
+
+                                            // Current lyric / status line
+                                            val sanitizedProgress = aiProgressText
+                                                .ifBlank { "AI listening to vocal sound wave..." }
+                                                .replace("Whisper AI", "AI", ignoreCase = true)
+                                                .replace("Whisper", "AI", ignoreCase = true)
+                                                .replace("whisper", "AI", ignoreCase = true)
                                             Text(
-                                                text = aiProgressText.ifBlank { "Whisper AI listening to vocal sound wave..." },
+                                                text = sanitizedProgress,
                                                 fontSize = 11.5.sp,
-                                                fontWeight = FontWeight.Medium,
-                                                color = Color(0xFFE0E7FF),
-                                                textAlign = TextAlign.Center
+                                                color = Color(0xFF818CF8),
+                                                textAlign = TextAlign.Start,
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+
+                                            // Time row: elapsed | remaining
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Text(
+                                                    text = "Elapsed: ${elapsedSec / 60}m ${elapsedSec % 60}s",
+                                                    fontSize = 10.5.sp,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    color = Color(0xFF6B7280)
+                                                )
+                                                if (remainingSec != null) {
+                                                    Text(
+                                                        text = "~${remainingSec / 60}m ${remainingSec % 60}s remaining",
+                                                        fontSize = 10.5.sp,
+                                                        fontFamily = FontFamily.Monospace,
+                                                        color = Color(0xFF6B7280)
+                                                    )
+                                                } else {
+                                                    Text(
+                                                        text = "Estimating time…",
+                                                        fontSize = 10.5.sp,
+                                                        fontFamily = FontFamily.Monospace,
+                                                        color = Color(0xFF4B5563)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else if (aiTabError != null) {
+                                    Surface(
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = Color(0xFF7F1D1D).copy(alpha = 0.35f),
+                                        border = BorderStroke(1.dp, Color(0xFFDC2626)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                Icons.Default.ErrorOutline,
+                                                contentDescription = null,
+                                                tint = Color(0xFFF87171),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                text = aiTabError ?: "Transcription failed",
+                                                fontSize = 11.5.sp,
+                                                color = Color(0xFFFECACA),
+                                                modifier = Modifier.weight(1f)
                                             )
                                         }
                                     }
@@ -3464,6 +4459,15 @@ fun StudioLyricsModal(
                                 Button(
                                     onClick = {
                                         aiTabError = null
+                                        val modelInfo = WhisperModelManager.AVAILABLE_MODELS.firstOrNull { it.id == selectedModel }
+                                        if (modelInfo != null && !WhisperModelManager.isModelInstalled(selectedModel)) {
+                                            if (WhisperModelManager.isDownloading(selectedModel)) {
+                                                aiTabError = "${modelInfo.name} is currently downloading. Please wait for the download to complete."
+                                            } else {
+                                                aiTabError = "${modelInfo.name} is not installed yet. Click 'Download Model' above to download it (${modelInfo.sizeText})."
+                                            }
+                                            return@Button
+                                        }
                                         onTranscribeAi(selectedModel, selectedLanguage)
                                     },
                                     enabled = audioSourceAvailable && !isTranscribingAi,
@@ -3497,7 +4501,7 @@ fun StudioLyricsModal(
                                             )
                                             Spacer(Modifier.width(8.dp))
                                             Text(
-                                                "Extract Lyrics from Audio with AI (Whisper)",
+                                                "Extract Lyrics from Audio with AI",
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 13.sp,
                                                 lineHeight = 13.sp
@@ -3506,39 +4510,60 @@ fun StudioLyricsModal(
                                     }
                                 }
 
-                                // If synced lyrics exist, show preview info
-                                if (syncedLyrics.isNotEmpty()) {
-                                    Surface(
-                                        shape = RoundedCornerShape(8.dp),
-                                        color = ColorSurfaceCard,
-                                        border = BorderStroke(1.dp, ColorCardBorder),
+                                // Section 3: If synced lyrics exist and not currently transcribing, show rich completion status and Karaoke button
+                                if (syncedLyrics.isNotEmpty() && !isTranscribingAi) {
+                                    Card(
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = CardDefaults.cardColors(containerColor = Color(0xFF064E3B).copy(alpha = 0.30f)),
+                                        border = BorderStroke(1.dp, Color(0xFF059669)),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Row(
-                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
+                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(Icons.Default.Check, contentDescription = null, tint = ColorAccentBlue, modifier = Modifier.size(14.dp))
-                                                Spacer(Modifier.width(6.dp))
-                                                Text("${syncedLyrics.size} time-synced lyric lines active", fontSize = 11.5.sp, color = ColorAccentBlue)
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.CheckCircle,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFF34D399),
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                                Spacer(Modifier.width(10.dp))
+                                                Column {
+                                                    Text(
+                                                        "Transcription complete!",
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 12.sp,
+                                                        color = Color(0xFFA7F3D0)
+                                                    )
+                                                    Text(
+                                                        "${syncedLyrics.size} time-synced lyric lines extracted",
+                                                        fontSize = 11.sp,
+                                                        color = Color(0xFF6EE7B7)
+                                                    )
+                                                }
                                             }
+                                            Spacer(Modifier.width(12.dp))
                                             Surface(
                                                 onClick = { activeTab = "SYNCED" },
                                                 shape = RoundedCornerShape(6.dp),
-                                                color = ColorAccentBlue.copy(alpha = 0.15f),
-                                                border = BorderStroke(1.dp, ColorAccentBlue.copy(alpha = 0.40f))
+                                                color = Color(0xFF059669),
+                                                border = BorderStroke(1.dp, Color(0xFF10B981))
                                             ) {
                                                 Row(
-                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                                    modifier = Modifier.padding(horizontal = 11.dp, vertical = 6.dp),
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
                                                     Text(
-                                                        text = "View Live Karaoke",
+                                                        text = "Synced Lyrics →",
                                                         fontSize = 11.5.sp,
                                                         fontWeight = FontWeight.SemiBold,
-                                                        color = ColorAccentBlue
+                                                        color = Color.White
                                                     )
                                                 }
                                             }
@@ -3552,5 +4577,718 @@ fun StudioLyricsModal(
             }
         }
     }
+
+    if (showLanguagePickerModal) {
+        LanguagePickerModal(
+            selectedLanguage = selectedLanguage,
+            onSelectLanguage = { selectedLanguage = it },
+            onDismiss = { showLanguagePickerModal = false }
+        )
+    }
+
+    if (showScriptConverterModal) {
+        ScriptConverterModal(
+            currentLyrics = editableLyrics,
+            onApplyConversion = { converted ->
+                editableLyrics = converted
+                onUpdateLyrics(converted)
+                cleanNoticeMessage = "Script converted successfully"
+                showScriptConverterModal = false
+            },
+            onDismiss = { showScriptConverterModal = false }
+        )
+    }
 }
+
+@Composable
+fun LanguagePickerModal(
+    selectedLanguage: String,
+    onSelectLanguage: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf("All") }
+
+    val categories = listOf(
+        "All",
+        "Indian & South Asian",
+        "Popular Global",
+        "European",
+        "East Asian",
+        "Middle Eastern"
+    )
+
+    val filteredLanguages = remember(searchQuery, selectedCategory) {
+        LyricsExtractor.SUPPORTED_LANGUAGES.filter { lang ->
+            val matchesCategory = if (selectedCategory == "All") true else lang.category == selectedCategory
+            val q = searchQuery.trim().lowercase()
+            val matchesSearch = q.isEmpty() ||
+                    lang.displayName.lowercase().contains(q) ||
+                    lang.nativeName.lowercase().contains(q) ||
+                    lang.code.lowercase().contains(q) ||
+                    lang.category.lowercase().contains(q)
+            matchesCategory && matchesSearch
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF131722)),
+            border = BorderStroke(1.dp, Color(0xFF2E384D)),
+            modifier = Modifier
+                .widthIn(min = 520.dp, max = 640.dp)
+                .heightIn(min = 500.dp, max = 620.dp)
+                .padding(16.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxSize().padding(18.dp)) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFF4F46E5))
+                        ) {
+                            Icon(Icons.Default.Language, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text("Select Lyrics Language", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFFF1F5F9))
+                            Text("34+ Supported Regional & Global Languages", fontSize = 11.5.sp, color = Color(0xFF94A3B8))
+                        }
+                    }
+
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                // Search field (BasicTextField to avoid OutlinedTextField vertical text clipping)
+                var isSearchFocused by remember { mutableStateOf(false) }
+                BasicTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    singleLine = true,
+                    textStyle = TextStyle(
+                        fontSize = 13.sp,
+                        color = Color.White
+                    ),
+                    cursorBrush = SolidColor(Color(0xFF818CF8)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onFocusChanged { isSearchFocused = it.isFocused },
+                    decorationBox = { innerTextField ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp)
+                                .background(
+                                    color = if (isSearchFocused) Color(0xFF1E2433) else Color(0xFF161B26),
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isSearchFocused) Color(0xFF6366F1) else Color(0xFF2E384D),
+                                    shape = RoundedCornerShape(10.dp)
+                                )
+                                .padding(horizontal = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = null,
+                                tint = if (isSearchFocused) Color(0xFF818CF8) else Color(0xFF64748B),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Box(
+                                modifier = Modifier.weight(1f),
+                                contentAlignment = Alignment.CenterStart
+                            ) {
+                                if (searchQuery.isEmpty()) {
+                                    Text(
+                                        "Search by language, script, or region...",
+                                        fontSize = 12.5.sp,
+                                        color = Color(0xFF64748B)
+                                    )
+                                }
+                                innerTextField()
+                            }
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(
+                                    onClick = { searchQuery = "" },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Clear,
+                                        contentDescription = "Clear",
+                                        tint = Color(0xFF94A3B8),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                )
+
+                Spacer(Modifier.height(10.dp))
+
+                // Category Tabs Row
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(categories) { cat ->
+                        val isSel = selectedCategory == cat
+                        Surface(
+                            onClick = { selectedCategory = cat },
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (isSel) Color(0xFF4F46E5) else Color(0xFF1E2433),
+                            border = BorderStroke(1.dp, if (isSel) Color(0xFF818CF8) else Color(0xFF2E384D))
+                        ) {
+                            Text(
+                                text = cat,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isSel) Color.White else Color(0xFF94A3B8),
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                // Language List with dedicated, non-colliding scrollbar
+                val listState = rememberLazyListState()
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                ) {
+                    LazyColumn(
+                        state = listState,
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                    ) {
+                        if (filteredLanguages.isEmpty()) {
+                            item {
+                                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth().padding(32.dp)) {
+                                    Text("No languages matching '$searchQuery'", fontSize = 13.sp, color = Color(0xFF64748B))
+                                }
+                            }
+                        } else {
+                            items(filteredLanguages) { lang ->
+                                val isSelected = selectedLanguage.equals(lang.code, ignoreCase = true)
+
+                                Surface(
+                                    onClick = {
+                                        onSelectLanguage(lang.code)
+                                        onDismiss()
+                                    },
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = if (isSelected) Color(0xFF312E81) else Color(0xFF1A202C),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (isSelected) Color(0xFF818CF8) else Color(0xFF2D3748)
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                            Column {
+                                                Text(
+                                                    text = lang.displayName,
+                                                    fontSize = 13.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (isSelected) Color.White else Color(0xFFF1F5F9)
+                                                )
+                                                Spacer(Modifier.height(2.dp))
+                                                Text(
+                                                    text = "${lang.nativeName} • ${lang.category}",
+                                                    fontSize = 11.5.sp,
+                                                    color = if (isSelected) Color(0xFFC7D2FE) else Color(0xFF94A3B8)
+                                                )
+                                            }
+                                        }
+
+                                        if (isSelected) {
+                                            Icon(
+                                                imageVector = Icons.Default.CheckCircle,
+                                                contentDescription = "Selected",
+                                                tint = Color(0xFF818CF8),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.width(6.dp))
+
+                    VerticalScrollbar(
+                        adapter = rememberScrollbarAdapter(listState),
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .padding(vertical = 2.dp),
+                        style = defaultScrollbarStyle().copy(
+                            unhoverColor = Color.White.copy(alpha = 0.15f),
+                            hoverColor = Color(0xFF818CF8),
+                            thickness = 6.dp,
+                            shape = RoundedCornerShape(3.dp)
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ScriptConverterModal(
+    currentLyrics: String,
+    onApplyConversion: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    data class ScriptItem(val id: String, val name: String, val nativeName: String, val sample: String)
+
+    val scriptList = remember {
+        listOf(
+            ScriptItem("roman", "English / Roman Script", "Latin English", "Tum hi ho / Ami tomay"),
+            ScriptItem("devanagari", "Hindi / Devanagari", "हिन्दी / मराठी", "तुम ही हो"),
+            ScriptItem("bengali", "Bengali / Bangla", "বাংলা / অসমীয়া", "আমি তোমায় ভালোবাসি"),
+            ScriptItem("urdu", "Urdu / Nastaliq", "اردو", "تم ہی ہو"),
+            ScriptItem("gurmukhi", "Punjabi / Gurmukhi", "ਪੰਜਾਬੀ", "ਸਤਿ ਸ੍ਰੀ ਅਕਾਲ"),
+            ScriptItem("gujarati", "Gujarati", "ગુજરાતી", "કેમ છો"),
+            ScriptItem("tamil", "Tamil", "தமிழ்", "வணக்கம்"),
+            ScriptItem("telugu", "Telugu", "తెలుగు", "నమస్కారం")
+        )
+    }
+
+    // Detect dominant source script
+    val detectedSource = remember(currentLyrics) {
+        PhoneticTransliterator.detectDominantScript(currentLyrics)
+    }
+
+    var fromScript by remember { mutableStateOf("auto") }
+    var toScript by remember {
+        mutableStateOf(
+            when (detectedSource) {
+                "roman" -> "devanagari"
+                "devanagari" -> "bengali"
+                "bengali" -> "devanagari"
+                "urdu" -> "devanagari"
+                else -> "roman"
+            }
+        )
+    }
+
+    val effectiveFrom = if (fromScript == "auto") detectedSource else fromScript
+
+    // Generate real-time preview (first 6 non-blank lines)
+    val sampleOriginal = remember(currentLyrics) {
+        currentLyrics.lines().filter { it.isNotBlank() }.take(6).joinToString("\n")
+    }
+
+    val sampleConverted = remember(sampleOriginal, effectiveFrom, toScript) {
+        if (sampleOriginal.isBlank()) "No lyrics loaded to preview."
+        else PhoneticTransliterator.convertScript(sampleOriginal, effectiveFrom, toScript)
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF131722)),
+            border = BorderStroke(1.dp, Color(0xFF2E384D)),
+            modifier = Modifier
+                .widthIn(min = 640.dp, max = 800.dp)
+                .heightIn(min = 520.dp, max = 640.dp)
+                .padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(20.dp)
+            ) {
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(Brush.linearGradient(listOf(Color(0xFF2563EB), Color(0xFF06B6D4))))
+                        ) {
+                            Icon(Icons.Default.Translate, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text("Universal Script Converter Studio", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFFF1F5F9))
+                            Text("Convert lyric characters between any languages — preserves phonetics, song rhymes & LRC timestamps", fontSize = 11.5.sp, color = Color(0xFF94A3B8))
+                        }
+                    }
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                // Quick Preset Chips adapted to detected script
+                Text("Quick Presets:", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF94A3B8))
+                Spacer(Modifier.height(6.dp))
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val presets = when (detectedSource) {
+                        "roman" -> listOf(
+                            Triple("English → Hindi", "roman", "devanagari"),
+                            Triple("English → Bengali", "roman", "bengali"),
+                            Triple("English → Urdu", "roman", "urdu"),
+                            Triple("English → Punjabi", "roman", "gurmukhi"),
+                            Triple("English → Gujarati", "roman", "gujarati")
+                        )
+                        "urdu" -> listOf(
+                            Triple("Urdu → Hindi", "urdu", "devanagari"),
+                            Triple("Urdu → Bengali", "urdu", "bengali"),
+                            Triple("Urdu → Roman", "urdu", "roman"),
+                            Triple("Urdu → Punjabi", "urdu", "gurmukhi")
+                        )
+                        "bengali" -> listOf(
+                            Triple("Bengali → Hindi", "bengali", "devanagari"),
+                            Triple("Bengali → Urdu", "bengali", "urdu"),
+                            Triple("Bengali → Roman (Benglish)", "bengali", "roman"),
+                            Triple("Bengali → Punjabi", "bengali", "gurmukhi")
+                        )
+                        else -> listOf(
+                            Triple("Hindi → Bengali", "devanagari", "bengali"),
+                            Triple("Hindi → Urdu", "devanagari", "urdu"),
+                            Triple("Hindi → Roman (Hinglish)", "devanagari", "roman"),
+                            Triple("Bengali → Hindi", "bengali", "devanagari"),
+                            Triple("Hindi → Punjabi", "devanagari", "gurmukhi"),
+                            Triple("Auto → Roman (All)", "auto", "roman")
+                        )
+                    }
+                    items(presets) { (label, f, t) ->
+                        val isCurrent = fromScript == f && toScript == t
+                        Surface(
+                            onClick = {
+                                fromScript = f
+                                toScript = t
+                            },
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (isCurrent) Color(0xFF1E3A8A) else Color(0xFF1E2438),
+                            border = BorderStroke(1.dp, if (isCurrent) Color(0xFF3B82F6) else Color(0xFF334155))
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 11.sp,
+                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isCurrent) Color(0xFF93C5FD) else Color(0xFFCBD5E1),
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                // Script Selection Row: From -> [⇄ Swap] -> To
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // From Script Selector
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("FROM SCRIPT (SOURCE LETTERS)", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8))
+                        Spacer(Modifier.height(5.dp))
+                        var showFromMenu by remember { mutableStateOf(false) }
+                        val fromLabel = if (fromScript == "auto") "⚡ Auto Detect (${scriptList.firstOrNull { it.id == detectedSource }?.name ?: "Indic"})"
+                        else scriptList.firstOrNull { it.id == fromScript }?.name ?: fromScript
+
+                        Box {
+                            Surface(
+                                onClick = { showFromMenu = true },
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFF1E2438),
+                                border = BorderStroke(1.dp, Color(0xFF3B82F6).copy(alpha = 0.6f)),
+                                modifier = Modifier.fillMaxWidth().height(38.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(fromLabel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1)
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(16.dp))
+                                }
+                            }
+
+                            DropdownMenu(
+                                expanded = showFromMenu,
+                                onDismissRequest = { showFromMenu = false },
+                                modifier = Modifier.background(Color(0xFF1E2438)).border(1.dp, Color(0xFF334155), RoundedCornerShape(8.dp))
+                            ) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text("⚡ Auto Detect Script", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF38BDF8))
+                                            Text("Detected: ${scriptList.firstOrNull { it.id == detectedSource }?.name ?: "Indic"}", fontSize = 10.5.sp, color = Color(0xFF94A3B8))
+                                        }
+                                    },
+                                    onClick = {
+                                        fromScript = "auto"
+                                        showFromMenu = false
+                                    }
+                                )
+                                HorizontalDivider(color = Color(0xFF2E3856))
+                                scriptList.forEach { s ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Column {
+                                                Text(s.name, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = Color(0xFFF1F5F9))
+                                                Text("${s.nativeName} • e.g. ${s.sample}", fontSize = 10.5.sp, color = Color(0xFF94A3B8))
+                                            }
+                                        },
+                                        onClick = {
+                                            fromScript = s.id
+                                            showFromMenu = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Swap Button
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Spacer(Modifier.height(18.dp))
+                        Surface(
+                            onClick = {
+                                val currentEffective = if (fromScript == "auto") detectedSource else fromScript
+                                fromScript = toScript
+                                toScript = currentEffective
+                            },
+                            shape = CircleShape,
+                            color = Color(0xFF2563EB).copy(alpha = 0.25f),
+                            border = BorderStroke(1.dp, Color(0xFF3B82F6)),
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                Text("⇄", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF60A5FA))
+                            }
+                        }
+                    }
+
+                    // To Script Selector
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("TO SCRIPT (TARGET LETTERS)", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8))
+                        Spacer(Modifier.height(5.dp))
+                        var showToMenu by remember { mutableStateOf(false) }
+                        val toLabel = scriptList.firstOrNull { it.id == toScript }?.name ?: toScript
+
+                        Box {
+                            Surface(
+                                onClick = { showToMenu = true },
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFF1E2438),
+                                border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.6f)),
+                                modifier = Modifier.fillMaxWidth().height(38.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(toLabel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1)
+                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color(0xFF34D399), modifier = Modifier.size(16.dp))
+                                }
+                            }
+
+                            DropdownMenu(
+                                expanded = showToMenu,
+                                onDismissRequest = { showToMenu = false },
+                                modifier = Modifier.background(Color(0xFF1E2438)).border(1.dp, Color(0xFF334155), RoundedCornerShape(8.dp))
+                            ) {
+                                scriptList.filter { it.id != effectiveFrom }.forEach { s ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Column {
+                                                Text(s.name, fontWeight = FontWeight.Medium, fontSize = 12.sp, color = Color(0xFFF1F5F9))
+                                                Text("${s.nativeName} • e.g. ${s.sample}", fontSize = 10.5.sp, color = Color(0xFF94A3B8))
+                                            }
+                                        },
+                                        onClick = {
+                                            toScript = s.id
+                                            showToMenu = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                // Live Preview Section
+                Text("REAL-TIME LIVE PREVIEW (LETTERS ONLY):", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF94A3B8))
+                Spacer(Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Original Sample
+                    Card(
+                        shape = RoundedCornerShape(8.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF161A28)),
+                        border = BorderStroke(1.dp, Color(0xFF23283B)),
+                        modifier = Modifier.weight(1f).fillMaxHeight()
+                    ) {
+                        Column(modifier = Modifier.fillMaxSize().padding(10.dp)) {
+                            Text("Original Lyrics", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = sampleOriginal.ifBlank { "No lyrics available." },
+                                fontSize = 12.sp,
+                                lineHeight = 18.sp,
+                                color = Color(0xFF94A3B8),
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())
+                            )
+                        }
+                    }
+
+                    // Converted Sample
+                    Card(
+                        shape = RoundedCornerShape(8.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F1E2E)),
+                        border = BorderStroke(1.dp, Color(0xFF0284C7).copy(alpha = 0.5f)),
+                        modifier = Modifier.weight(1f).fillMaxHeight()
+                    ) {
+                        Column(modifier = Modifier.fillMaxSize().padding(10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Converted Letters Preview", fontSize = 10.5.sp, fontWeight = FontWeight.Bold, color = Color(0xFF38BDF8))
+                                Spacer(Modifier.width(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = Color(0xFF0284C7).copy(alpha = 0.2f),
+                                    border = BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.4f))
+                                ) {
+                                    Text("Live", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color(0xFF7DD3FC), modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp))
+                                }
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = sampleConverted,
+                                fontSize = 12.sp,
+                                lineHeight = 18.sp,
+                                color = Color(0xFFE0F2FE),
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(10.dp))
+
+                // Bottom Explanation & Action Buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "✓ Pure script transliteration: pronunciations & LRC timestamps remain intact.",
+                        fontSize = 11.sp,
+                        color = Color(0xFF64748B),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).padding(end = 16.dp)
+                    )
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedButton(
+                            onClick = onDismiss,
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, Color(0xFF334155)),
+                            modifier = Modifier.height(38.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp)
+                        ) {
+                            Text(
+                                text = "Cancel",
+                                fontSize = 12.5.sp,
+                                color = Color(0xFF94A3B8),
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+
+                        Button(
+                            onClick = {
+                                val fullConverted = PhoneticTransliterator.convertScript(currentLyrics, effectiveFrom, toScript)
+                                onApplyConversion(fullConverted)
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
+                            modifier = Modifier.height(38.dp),
+                            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 0.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Icon(Icons.Default.Done, contentDescription = null, modifier = Modifier.size(15.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = "Apply to All Lyrics",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 

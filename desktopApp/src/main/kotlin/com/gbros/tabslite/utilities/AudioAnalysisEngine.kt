@@ -205,7 +205,7 @@ object AudioAnalysisEngine {
 
     /**
      * Reads a real audio file from disk into mono float samples [-1.0, 1.0] at target sample rate.
-     * Supports MP3, WAV, AIFF, AU with fallback to JLayer decoder.
+     * Supports MP3, WAV, FLAC, M4A, AAC, OGG, OPUS, AIFF, AU with FFmpeg engine and JLayer fallback.
      */
     fun loadAudioFile(
         file: File,
@@ -213,21 +213,108 @@ object AudioAnalysisEngine {
         onProgress: (step: String, pct: Float) -> Unit = { _, _ -> }
     ): FloatArray {
         val extension = file.extension.lowercase()
+
+        // 1. If FFmpeg is available and file is modern compressed/lossless (FLAC, M4A, AAC, OGG, OPUS, WMA, etc.)
+        if (ffmpegExePath != null && extension !in listOf("wav", "mp3")) {
+            try {
+                return decodeWithFfmpeg(file, targetSampleRate, onProgress)
+            } catch (e: Exception) {
+                System.err.println("[AudioAnalysisEngine] FFmpeg decoding attempt failed for ${file.name}: ${e.message}")
+            }
+        }
+
+        // 2. Built-in standard decoders with cross-fallback
         return if (extension == "mp3") {
-            decodeMp3WithJLayer(file, targetSampleRate, onProgress)
+            try {
+                decodeMp3WithJLayer(file, targetSampleRate, onProgress)
+            } catch (e: Exception) {
+                if (ffmpegExePath != null) {
+                    decodeWithFfmpeg(file, targetSampleRate, onProgress)
+                } else {
+                    throw e
+                }
+            }
         } else {
             try {
                 decodeStandardAudio(file, targetSampleRate)
             } catch (e: Exception) {
+                if (ffmpegExePath != null) {
+                    try {
+                        return decodeWithFfmpeg(file, targetSampleRate, onProgress)
+                    } catch (_: Exception) {}
+                }
                 // If standard AudioSystem fails, attempt JLayer in case of MPEG/MP3 with different extension
                 try {
                     decodeMp3WithJLayer(file, targetSampleRate, onProgress)
                 } catch (e2: Exception) {
-                    throw IllegalArgumentException("Could not decode audio file '${file.name}'. Please ensure it is a valid MP3 or WAV file: ${e.message}")
+                    throw IllegalArgumentException("Could not decode audio file '${file.name}'. Please ensure it is a valid audio file (MP3, WAV, FLAC, M4A, AAC, OGG): ${e.message}")
                 }
             }
         }
     }
+
+    private val ffmpegExePath: String? by lazy {
+        findFfmpegExecutable()
+    }
+
+    private fun findFfmpegExecutable(): String? {
+        val candidatePaths = listOf(
+            "C:\\Ai\\ffmpeg\\ffmpeg.exe",
+            "C:\\ffmpeg\\bin\\ffmpeg.exe",
+            "C:\\Program Files\\ffmpeg\\bin\\ffmpeg.exe",
+            System.getenv("LOCALAPPDATA")?.let { "$it\\Programs\\ffmpeg\\bin\\ffmpeg.exe" },
+            System.getenv("USERPROFILE")?.let { "$it\\scoop\\shims\\ffmpeg.exe" },
+            "ffmpeg"
+        ).filterNotNull()
+
+        for (candidate in candidatePaths) {
+            try {
+                val pb = ProcessBuilder(candidate, "-version")
+                pb.redirectErrorStream(true)
+                LyricsExtractor.ensureFfmpegInEnvironment(pb)
+                val proc = pb.start()
+                val finished = proc.waitFor(1500, java.util.concurrent.TimeUnit.MILLISECONDS)
+                if (finished && proc.exitValue() == 0) {
+                    return candidate
+                }
+            } catch (_: Exception) {}
+        }
+        return null
+    }
+
+    private fun decodeWithFfmpeg(
+        file: File,
+        targetSampleRate: Float,
+        onProgress: (step: String, pct: Float) -> Unit
+    ): FloatArray {
+        val ffmpegExe = ffmpegExePath ?: throw IllegalStateException("FFmpeg executable not found")
+        onProgress("Decoding audio with on-device FFmpeg engine...", 0.10f)
+
+        val pb = ProcessBuilder(
+            ffmpegExe,
+            "-v", "error",
+            "-i", file.absolutePath,
+            "-f", "f32le",
+            "-ac", "1",
+            "-ar", targetSampleRate.toInt().toString(),
+            "pipe:1"
+        )
+        LyricsExtractor.ensureFfmpegInEnvironment(pb)
+        val proc = pb.start()
+
+        val rawBytes = proc.inputStream.use { it.readBytes() }
+        val exitCode = proc.waitFor()
+        if (exitCode != 0 || rawBytes.isEmpty()) {
+            val err = proc.errorStream.bufferedReader().readText()
+            throw IllegalStateException("FFmpeg failed to decode audio file '${file.name}' (exit code $exitCode): $err")
+        }
+
+        val floatBuffer = ByteBuffer.wrap(rawBytes).order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer()
+        val floatSamples = FloatArray(floatBuffer.remaining())
+        floatBuffer.get(floatSamples)
+        return floatSamples
+    }
+
 
     private fun decodeMp3WithJLayer(
         file: File,

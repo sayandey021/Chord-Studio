@@ -297,6 +297,36 @@ object AudioTuner {
                 TuningString("A", 4, 440.00),
                 TuningString("E", 5, 659.25)
             )
+        ),
+        TuningPreset(
+            name = "Mandolin Standard (GDAE)",
+            categoryId = "violin",
+            strings = listOf(
+                TuningString("G", 3, 196.00),
+                TuningString("D", 4, 293.66),
+                TuningString("A", 4, 440.00),
+                TuningString("E", 5, 659.25)
+            )
+        ),
+        TuningPreset(
+            name = "Mandolin Open G (GDGD)",
+            categoryId = "violin",
+            strings = listOf(
+                TuningString("G", 3, 196.00),
+                TuningString("D", 4, 293.66),
+                TuningString("G", 4, 392.00),
+                TuningString("D", 5, 587.33)
+            )
+        ),
+        TuningPreset(
+            name = "Violin Cross Tuning (AEAE)",
+            categoryId = "violin",
+            strings = listOf(
+                TuningString("A", 3, 220.00),
+                TuningString("E", 4, 329.63),
+                TuningString("A", 4, 440.00),
+                TuningString("E", 5, 659.25)
+            )
         )
     )
 
@@ -474,124 +504,84 @@ object AudioTuner {
     }
 
     /**
-     * Plays an authentic warm acoustic string pluck sound using acoustic modal
-     * synthesis coupled with Helmholtz air cavity and spruce wooden soundboard resonance.
-     * Eliminates buzzy electric harmonics for a deep, organic acoustic dreadnought and upright tone.
+     * Plays an authentic natural instrument tone matching the Learn Hub experience,
+     * utilizing real sampled acoustic guitar, ukulele, bass, banjo, violin, and mandolin programs.
+     * Automatically pauses previously playing notes and uses short, crisp durations for violin and mandolin.
      */
-    fun playTone(frequency: Double, durationMs: Int = 2400) {
-        playbackJob?.cancel()
-        playbackJob = CoroutineScope(Dispatchers.IO).launch {
-            var line: SourceDataLine? = null
-            try {
-                val sampleRate = 44100.0
-                val totalSamples = (sampleRate * (durationMs / 1000.0)).toInt()
-                val format = AudioFormat(sampleRate.toFloat(), 16, 1, true, false)
-                val info = DataLine.Info(SourceDataLine::class.java, format)
-
-                val outputDevice = com.gbros.tabslite.data.DesktopDatabase.instance.settingsFlow.value.audioOutputDevice
-                line = AudioDeviceManager.openSourceLine(format, 8192, outputDevice)
-                line.start()
-
-                val audioBuffer = ByteArray(4096)
-                var bufferByteIdx = 0
-                val random = java.util.Random()
-
-                // Acoustic string decay rates based on pitch (lower bass sustains longer)
-                val baseDecay = when {
-                    frequency < 60.0 -> 1.4    // Deep bass strings
-                    frequency < 120.0 -> 1.8   // Low E/A acoustic guitar strings
-                    frequency < 250.0 -> 2.3   // D/G strings
-                    else -> 2.9                // Treble B/E strings
-                }
-
-                // Harmonic amplitude weights for phosphor bronze acoustic strings
-                val h1_Amp = 0.85
-                val h2_Amp = 0.42
-                val h3_Amp = 0.20
-                val h4_Amp = 0.08
-                val h5_Amp = 0.03
-
-                val h1_Decay = baseDecay
-                val h2_Decay = baseDecay * 1.6
-                val h3_Decay = baseDecay * 2.8
-                val h4_Decay = baseDecay * 4.5
-                val h5_Decay = baseDecay * 7.0
-
-                // Wood Body Helmholtz Cavity & Spruce Soundboard Resonances
-                val helmholtzFreq = 104.0
-                val helmholtzDecay = 16.0
-                val helmholtzAmp = if (frequency < 200.0) 0.28 else 0.12
-
-                val spruceFreq = 212.0
-                val spruceDecay = 22.0
-                val spruceAmp = 0.18
-
-                // Finger / Tortoise Pick soft impact transient
-                var pickFilter = 0.0
-
-                for (s in 0 until totalSamples) {
-                    if (!isActive) break
-
-                    val t = s / sampleRate
-
-                    // 1. Organic Acoustic String Harmonics (Exponential Modal Decay)
-                    val h1 = h1_Amp * exp(-h1_Decay * t) * sin(2.0 * PI * frequency * t)
-                    val h2 = h2_Amp * exp(-h2_Decay * t) * sin(2.0 * PI * (frequency * 2.0) * t + 0.2)
-                    val h3 = h3_Amp * exp(-h3_Decay * t) * sin(2.0 * PI * (frequency * 3.0) * t + 0.5)
-                    val h4 = h4_Amp * exp(-h4_Decay * t) * sin(2.0 * PI * (frequency * 4.0) * t + 0.9)
-                    val h5 = h5_Amp * exp(-h5_Decay * t) * sin(2.0 * PI * (frequency * 5.0) * t + 1.3)
-
-                    val stringVibration = h1 + h2 + h3 + h4 + h5
-
-                    // 2. Wooden Acoustic Body Impulse (Soundboard & Cavity "Thump")
-                    val bodyHelmholtz = helmholtzAmp * exp(-helmholtzDecay * t) * sin(2.0 * PI * helmholtzFreq * t)
-                    val bodySpruce = spruceAmp * exp(-spruceDecay * t) * sin(2.0 * PI * spruceFreq * t)
-
-                    // 3. Soft Finger / Plectrum Touch Transient (< 40 ms)
-                    val rawNoise = (random.nextDouble() * 2.0 - 1.0)
-                    pickFilter = 0.82 * pickFilter + 0.18 * rawNoise
-                    val pickPluck = if (t < 0.05) {
-                        0.08 * exp(-55.0 * t) * pickFilter
-                    } else {
-                        0.0
-                    }
-
-                    // Combined Acoustic Signal
-                    val combined = stringVibration + bodyHelmholtz + bodySpruce + pickPluck
-
-                    // Gentle smooth fade-out at the very end
-                    val fadeOut = if (s > totalSamples - 2500) {
-                        (totalSamples - s) / 2500.0
-                    } else {
-                        1.0
-                    }
-
-                    // Soft wooden acoustic compression curve
-                    val finalSample = (tanh(combined * 1.15) * fadeOut * 0.92).coerceIn(-1.0, 1.0)
-                    val shortSample = (finalSample * 32767.0).roundToInt().toShort()
-
-                    audioBuffer[bufferByteIdx++] = (shortSample.toInt() and 0xFF).toByte()
-                    audioBuffer[bufferByteIdx++] = ((shortSample.toInt() shr 8) and 0xFF).toByte()
-
-                    if (bufferByteIdx >= audioBuffer.size) {
-                        line.write(audioBuffer, 0, bufferByteIdx)
-                        bufferByteIdx = 0
-                    }
-                }
-
-                if (bufferByteIdx > 0) {
-                    line.write(audioBuffer, 0, bufferByteIdx)
-                }
-
-                line.drain()
-            } catch (e: Exception) {
-                // Ignore cancellation
-            } finally {
-                try {
-                    line?.stop()
-                    line?.close()
-                } catch (_: Exception) {}
-            }
+    fun playStringTone(
+        string: TuningString,
+        categoryId: String = "guitar_6",
+        presetName: String = "",
+        durationMs: Long? = null
+    ) {
+        val program = getProgramForCategory(categoryId, presetName)
+        val pitch = getMidiPitch(string)
+        val duration = durationMs ?: when {
+            presetName.contains("mandolin", ignoreCase = true) -> 650L // Crisp mandolin pluck
+            categoryId.equals("violin", true) -> 800L                   // Short crisp violin stroke
+            categoryId.equals("banjo", true) -> 1400L
+            categoryId.equals("ukulele", true) -> 1600L
+            else -> 2000L
         }
+        MusicTheoryAudioPlayer.playTunerTone(pitch, program, duration)
+    }
+
+    /**
+     * Overload for playing natural tones directly from frequency or legacy calls
+     */
+    fun playTone(
+        frequency: Double,
+        durationMs: Long? = null,
+        categoryId: String = "guitar_6",
+        presetName: String = ""
+    ) {
+        val program = getProgramForCategory(categoryId, presetName)
+        val pitch = if (frequency > 0.0) {
+            (69.0 + 12.0 * kotlin.math.log2(frequency / 440.0)).roundToInt().coerceIn(12, 108)
+        } else 60
+        val duration = durationMs ?: when {
+            presetName.contains("mandolin", ignoreCase = true) -> 650L
+            categoryId.equals("violin", true) -> 800L
+            categoryId.equals("banjo", true) -> 1400L
+            categoryId.equals("ukulele", true) -> 1600L
+            else -> 2000L
+        }
+        MusicTheoryAudioPlayer.playTunerTone(pitch, program, duration)
+    }
+
+    private fun getProgramForCategory(categoryId: String, presetName: String = ""): Int {
+        val isMandolin = presetName.contains("mandolin", ignoreCase = true) || categoryId.contains("mandolin", ignoreCase = true)
+        return when {
+            isMandolin -> 45 // Pizzicato Strings / Mandolin Pluck
+            categoryId.lowercase() == "violin" -> 40 // Violin
+            categoryId.lowercase() == "ukulele" -> 24 // Acoustic Guitar (Nylon) / Ukulele
+            categoryId.lowercase() == "bass" -> 33    // Electric / Acoustic Bass
+            categoryId.lowercase() == "banjo" -> 105  // Banjo
+            else -> 25      // 6-String and 7-String Acoustic Guitar (Steel)
+        }
+    }
+
+    private fun getMidiPitch(string: TuningString): Int {
+        val clean = string.name.trim()
+        val pitchClass = when {
+            clean.equals("C", true) -> 0
+            clean.equals("C#", true) || clean.equals("Db", true) -> 1
+            clean.equals("D", true) -> 2
+            clean.equals("D#", true) || clean.equals("Eb", true) -> 3
+            clean.equals("E", true) -> 4
+            clean.equals("F", true) -> 5
+            clean.equals("F#", true) || clean.equals("Gb", true) -> 6
+            clean.equals("G", true) || clean.equals("g", true) -> 7
+            clean.equals("G#", true) || clean.equals("Ab", true) -> 8
+            clean.equals("A", true) -> 9
+            clean.equals("A#", true) || clean.equals("Bb", true) -> 10
+            clean.equals("B", true) -> 11
+            else -> (69.0 + 12.0 * kotlin.math.log2(string.frequency / 440.0)).roundToInt() % 12
+        }
+        return ((string.octave + 1) * 12 + pitchClass).coerceIn(12, 108)
+    }
+
+    fun stopPlayback() {
+        MusicTheoryAudioPlayer.stop()
     }
 }

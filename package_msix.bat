@@ -55,13 +55,16 @@ if not defined MAKEAPPX (
     goto :done
 )
 
+set "MSIX_FILENAME=ChordStudio-0.9.2.msix"
+if not "%~1"=="" set "MSIX_FILENAME=ChordStudio-%~1.msix"
+
 echo [4/4] Creating MSIX Package with %MAKEAPPX%...
-"%MAKEAPPX%" pack /d "%STAGING%" /p "%OUTPUT_DIR%\ChordStudio-0.8.0.msix" /nv /o
+"%MAKEAPPX%" pack /d "%STAGING%" /p "%OUTPUT_DIR%\%MSIX_FILENAME%" /nv /o
 if %ERRORLEVEL% equ 0 (
     echo.
     echo ===================================================
     echo MSIX Package created successfully:
-    echo %OUTPUT_DIR%\ChordStudio-0.8.0.msix
+    echo %OUTPUT_DIR%\%MSIX_FILENAME%
     echo ===================================================
 ) else (
     echo [ERROR] MakeAppx pack failed with code %ERRORLEVEL%.

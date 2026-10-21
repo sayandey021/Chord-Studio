@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.VerticalScrollbar
 import androidx.compose.foundation.defaultScrollbarStyle
 import androidx.compose.foundation.rememberScrollbarAdapter
@@ -23,7 +24,13 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
@@ -31,14 +38,18 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.zIndex
 import com.gbros.tabslite.data.DesktopDatabase
 import com.gbros.tabslite.data.Tab
 import com.gbros.tabslite.utilities.BackendConnection
 import com.gbros.tabslite.utilities.TabPdfExporter
 import com.gbros.tabslite.utilities.TabTransposer
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import io.github.vinceglb.filekit.compose.rememberFileSaverLauncher
@@ -386,7 +397,12 @@ fun TabViewerScreen(
                                     )
                                 }
                                 Spacer(Modifier.height(10.dp))
-                                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                val chordsListState = rememberLazyListState()
+                                LazyRow(
+                                    state = chordsListState,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.horizontalMouseWheelScroll(chordsListState, coroutineScope)
+                                ) {
                                     items(distinctChords) { chord ->
                                         Surface(
                                             onClick = { selectedChordDialog = chord },
@@ -434,18 +450,18 @@ fun TabViewerScreen(
                                 horizontalArrangement = Arrangement.spacedBy(24.dp)
                             ) {
                                 Box(modifier = Modifier.weight(1f)) {
-                                    RenderTabMarkup(col1, fontSize) { chord ->
+                                    RenderTabMarkup(col1, fontSize, settings.defaultInstrument) { chord ->
                                         if (settings.showChordPopups) selectedChordDialog = chord
                                     }
                                 }
                                 Box(modifier = Modifier.weight(1f)) {
-                                    RenderTabMarkup(col2, fontSize) { chord ->
+                                    RenderTabMarkup(col2, fontSize, settings.defaultInstrument) { chord ->
                                         if (settings.showChordPopups) selectedChordDialog = chord
                                     }
                                 }
                             }
                         } else {
-                            RenderTabMarkup(currentContent, fontSize) { chord ->
+                            RenderTabMarkup(currentContent, fontSize, settings.defaultInstrument) { chord ->
                                 if (settings.showChordPopups) selectedChordDialog = chord
                             }
                         }
@@ -666,13 +682,23 @@ fun TabViewerScreen(
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun RenderTabMarkup(
     content: String,
     fontSize: Float,
+    defaultInstrument: String = "Guitar",
     onChordClick: (String) -> Unit
 ) {
     val chordColor = Color(0xFF60A5FA)
+    val density = LocalDensity.current
+    val coroutineScope = rememberCoroutineScope()
+
+    var hoveredChord by remember { mutableStateOf<String?>(null) }
+    var hoverBounds by remember { mutableStateOf<Rect?>(null) }
+    var isHoveringCard by remember { mutableStateOf(false) }
+    var dismissJob by remember { mutableStateOf<Job?>(null) }
+    var textLayoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
 
     // Parse [ch]chord[/ch] and [tab] markup
     val annotated = remember(content, chordColor) {
@@ -712,19 +738,127 @@ private fun RenderTabMarkup(
         }
     }
 
-    ClickableText(
-        text = annotated,
-        style = TextStyle(
-            fontFamily = FontFamily.Monospace,
-            fontSize = fontSize.sp,
-            lineHeight = (fontSize * 1.45f).sp,
-            color = Color(0xFFF1F5F9)
-        ),
-        onClick = { offset ->
-            annotated.getStringAnnotations(tag = "CHORD", start = offset, end = offset)
-                .firstOrNull()?.let { annotation ->
-                    onChordClick(annotation.item)
+    Box(modifier = Modifier.fillMaxWidth()) {
+        ClickableText(
+            text = annotated,
+            style = TextStyle(
+                fontFamily = FontFamily.Monospace,
+                fontSize = fontSize.sp,
+                lineHeight = (fontSize * 1.45f).sp,
+                color = Color(0xFFF1F5F9)
+            ),
+            onTextLayout = { layout ->
+                textLayoutResult = layout
+            },
+            onClick = { offset ->
+                annotated.getStringAnnotations(tag = "CHORD", start = offset, end = offset)
+                    .firstOrNull()?.let { annotation ->
+                        onChordClick(annotation.item)
+                    }
+            },
+            modifier = Modifier
+                .onPointerEvent(PointerEventType.Move) { event ->
+                    val pos = event.changes.firstOrNull()?.position ?: return@onPointerEvent
+                    val layout = textLayoutResult ?: return@onPointerEvent
+
+                    // 1. If currently hovering a chord, keep it active if pointer is still within bounds (with generous padding)
+                    val currentBounds = hoverBounds
+                    if (hoveredChord != null && currentBounds != null &&
+                        pos.x in (currentBounds.left - 6f)..(currentBounds.right + 6f) &&
+                        pos.y in (currentBounds.top - 6f)..(currentBounds.bottom + 6f)
+                    ) {
+                        dismissJob?.cancel()
+                        dismissJob = null
+                        return@onPointerEvent
+                    }
+
+                    // 2. Otherwise check for a chord at the cursor position
+                    val charOffset = layout.getOffsetForPosition(pos)
+                    val annotation = annotated.getStringAnnotations(tag = "CHORD", start = charOffset, end = charOffset).firstOrNull()
+                    if (annotation != null) {
+                        val startBox = layout.getBoundingBox(annotation.start)
+                        val endBox = layout.getBoundingBox((annotation.end - 1).coerceAtLeast(annotation.start))
+                        if (pos.x in (startBox.left - 6f)..(endBox.right + 6f) &&
+                            pos.y in (startBox.top - 6f)..(endBox.bottom + 6f)
+                        ) {
+                            dismissJob?.cancel()
+                            dismissJob = null
+                            hoveredChord = annotation.item
+                            hoverBounds = Rect(startBox.left, startBox.top, endBox.right, endBox.bottom)
+                            return@onPointerEvent
+                        }
+                    }
+
+                    // 3. Pointer is outside chord boundaries - debounced dismiss
+                    if (hoveredChord != null && !isHoveringCard && dismissJob == null) {
+                        dismissJob = coroutineScope.launch {
+                            delay(140)
+                            if (!isHoveringCard) {
+                                hoveredChord = null
+                                hoverBounds = null
+                            }
+                            dismissJob = null
+                        }
+                    }
                 }
+                .onPointerEvent(PointerEventType.Exit) {
+                    if (hoveredChord != null && !isHoveringCard && dismissJob == null) {
+                        dismissJob = coroutineScope.launch {
+                            delay(140)
+                            if (!isHoveringCard) {
+                                hoveredChord = null
+                                hoverBounds = null
+                            }
+                            dismissJob = null
+                        }
+                    }
+                }
+        )
+
+        // Floating Chord Hover Card
+        if (hoveredChord != null && hoverBounds != null) {
+            val chord = hoveredChord!!
+            val bounds = hoverBounds!!
+            val cardHeight = 232.dp
+            val cardHeightPx = with(density) { cardHeight.toPx() }
+            val gapPx = with(density) { 8.dp.toPx() }
+
+            // Strictly position above or below the chord line to ensure the card never overlaps the cursor
+            val posY = if (bounds.top >= cardHeightPx + gapPx + 4f) {
+                bounds.top - cardHeightPx - gapPx
+            } else {
+                bounds.bottom + gapPx
+            }
+            val posX = (bounds.left - 10f).coerceAtLeast(4f)
+
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset(posX.toInt(), posY.toInt()) }
+                    .zIndex(100f)
+                    .onPointerEvent(PointerEventType.Enter) {
+                        isHoveringCard = true
+                        dismissJob?.cancel()
+                        dismissJob = null
+                    }
+                    .onPointerEvent(PointerEventType.Exit) {
+                        isHoveringCard = false
+                        dismissJob?.cancel()
+                        dismissJob = coroutineScope.launch {
+                            delay(120)
+                            if (!isHoveringCard) {
+                                hoveredChord = null
+                                hoverBounds = null
+                            }
+                            dismissJob = null
+                        }
+                    }
+            ) {
+                CompactChordHoverCard(
+                    chord = chord,
+                    defaultInstrument = defaultInstrument,
+                    onClick = { onChordClick(chord) }
+                )
+            }
         }
-    )
+    }
 }

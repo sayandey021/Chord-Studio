@@ -35,6 +35,7 @@ import androidx.compose.ui.input.key.*
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -51,11 +52,12 @@ import kotlinx.coroutines.launch
 
 enum class NavigationSection(val title: String, val icon: ImageVector, val group: String) {
     SEARCH("Search & Explore", Icons.Default.Search, "BROWSE"),
+    LEARN("Learn Hub", Icons.Default.School, "LEARN"),
     FAVORITES("Favorites", Icons.Default.FavoriteBorder, "LIBRARY"),
     PLAYLISTS("Playlists", Icons.AutoMirrored.Filled.List, "LIBRARY"),
     HISTORY("Recently Played", Icons.Default.History, "LIBRARY"),
     AI_STUDIO("AI Audio to Tab", Icons.Default.AutoAwesome, "STUDIO"),
-    TUNER("Tuner", Icons.Default.GraphicEq, "TOOLS"),
+    TUNER("Chromatic Tuner", Icons.Default.GraphicEq, "TOOLS"),
     CREATE_TAB("Create Custom Tab", Icons.Default.Add, "CONTRIBUTE"),
     SETTINGS("Settings", Icons.Default.Settings, "PREFERENCES")
 }
@@ -81,6 +83,7 @@ fun DesktopAppScaffold(
     )
 
     val searchState = remember { SearchState() }
+    val aiStudioState = remember { AiAudioStudioState() }
 
     val colors = AppColors
 
@@ -222,11 +225,12 @@ fun DesktopAppScaffold(
                 is DesktopScreen.Home -> {
                     when (selectedSection) {
                         NavigationSection.SEARCH -> SearchExploreView(searchState = searchState, onSelectTab = onSelectTab)
+                        NavigationSection.LEARN -> LearnHubScreen()
                         NavigationSection.FAVORITES -> FavoritesView(onSelectTab = onSelectTab)
                         NavigationSection.PLAYLISTS -> PlaylistsView(onSelectPlaylist = onSelectPlaylist)
                         NavigationSection.HISTORY -> HistoryView(onSelectTab = onSelectTab)
                         NavigationSection.TUNER -> TunerScreen()
-                        NavigationSection.AI_STUDIO -> AiAudioTabScreen(onOpenInTabViewer = onSelectTab)
+                        NavigationSection.AI_STUDIO -> AiAudioTabScreen(onOpenInTabViewer = onSelectTab, state = aiStudioState)
                         NavigationSection.CREATE_TAB -> {
                             CreateTabScreen(
                                 onBack = { onSectionSelected(NavigationSection.SEARCH) },
@@ -301,11 +305,16 @@ fun SidebarNavItem(
             }
         } else {
             Row(
-                modifier = Modifier.padding(horizontal = 10.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f, fill = false)
+                ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
@@ -315,12 +324,19 @@ fun SidebarNavItem(
                     Spacer(Modifier.width(12.dp))
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            lineHeight = 16.sp,
+                            lineHeightStyle = LineHeightStyle(
+                                alignment = LineHeightStyle.Alignment.Center,
+                                trim = LineHeightStyle.Trim.Both
+                            )
+                        ),
                         fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                         color = contentColor,
                         fontSize = 13.5.sp,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.offset(y = (-1).dp)
                     )
                 }
 
@@ -334,10 +350,17 @@ fun SidebarNavItem(
                         Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)) {
                             Text(
                                 text = badgeCount.toString(),
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    lineHeight = 12.sp,
+                                    lineHeightStyle = LineHeightStyle(
+                                        alignment = LineHeightStyle.Alignment.Center,
+                                        trim = LineHeightStyle.Trim.Both
+                                    )
+                                ),
                                 fontWeight = FontWeight.SemiBold,
                                 color = if (isSelected) colors.accent else colors.textSecondary,
-                                fontSize = 11.sp
+                                fontSize = 11.sp,
+                                modifier = Modifier.offset(y = (-0.5).dp)
                             )
                         }
                     }

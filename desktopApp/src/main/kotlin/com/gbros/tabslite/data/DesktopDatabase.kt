@@ -24,10 +24,10 @@ data class AppSettings(
     val smoothScroll: Boolean = true,
     val audioInputDevice: String = "Default System Microphone",
     val audioOutputDevice: String = "Default System Speakers",
-    val aiDeviceMode: String = "Auto (CPU / DirectML)",
     val audioBufferSize: Int = 512,
     val autoFetchLyrics: Boolean = true,
     val highPrecisionDsp: Boolean = true,
+    val preferredWhisperModel: String = "base",
     val keepScreenAwake: Boolean = true
 )
 

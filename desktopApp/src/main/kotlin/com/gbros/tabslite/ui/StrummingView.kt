@@ -116,11 +116,13 @@ private fun StrummingDiagram(
     }
 
     val horizontalScrollState = rememberScrollState()
+    val scope = rememberCoroutineScope()
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(horizontalScrollState)
+            .horizontalMouseWheelScroll(horizontalScrollState, scope)
             .padding(vertical = 4.dp)
     ) {
         measures.forEachIndexed { index, measureCode ->

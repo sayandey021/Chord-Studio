@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -75,6 +76,7 @@ fun TunerScreen(modifier: Modifier = Modifier) {
         AudioTuner.startListening()
         onDispose {
             AudioTuner.stopListening()
+            AudioTuner.stopPlayback()
         }
     }
 
@@ -102,6 +104,10 @@ fun TunerScreen(modifier: Modifier = Modifier) {
     )
 
     val scrollState = rememberScrollState()
+    val instrumentListState = rememberLazyListState()
+    val presetListState = rememberLazyListState()
+    val stringsScrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(
@@ -177,7 +183,11 @@ fun TunerScreen(modifier: Modifier = Modifier) {
                 color = colors.textSecondary,
                 modifier = Modifier.padding(end = 10.dp)
             )
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyRow(
+                state = instrumentListState,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.horizontalMouseWheelScroll(instrumentListState, coroutineScope)
+            ) {
                 items(AudioTuner.INSTRUMENTS) { instrument ->
                     val isSelected = selectedCategory == instrument
                     val instrumentIcon = when (instrument.iconKey) {
@@ -232,7 +242,11 @@ fun TunerScreen(modifier: Modifier = Modifier) {
                 color = colors.textMuted,
                 modifier = Modifier.padding(end = 10.dp)
             )
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            LazyRow(
+                state = presetListState,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.horizontalMouseWheelScroll(presetListState, coroutineScope)
+            ) {
                 items(categoryPresets) { preset ->
                     val isSelected = selectedPreset == preset
                     Surface(
@@ -423,7 +437,8 @@ fun TunerScreen(modifier: Modifier = Modifier) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
+                .horizontalScroll(stringsScrollState)
+                .horizontalMouseWheelScroll(stringsScrollState, coroutineScope)
                 .padding(vertical = 4.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
@@ -436,10 +451,11 @@ fun TunerScreen(modifier: Modifier = Modifier) {
                     onClick = {
                         if (isLocked) {
                             selectedString = null
+                            AudioTuner.stopPlayback()
                         } else {
                             selectedString = stringItem
+                            AudioTuner.playStringTone(stringItem, selectedCategory.id, selectedPreset.name)
                         }
-                        AudioTuner.playTone(stringItem.frequency)
                     },
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(

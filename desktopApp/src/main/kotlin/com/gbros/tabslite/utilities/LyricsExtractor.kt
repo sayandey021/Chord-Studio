@@ -24,7 +24,8 @@ data class ExtractedLyricsResult(
     val syncedLyrics: List<SyncedLyricLine> = emptyList(),
     val source: String = "online", // "embedded", "sidecar", "online", "manual"
     val detectedTitle: String? = null,
-    val detectedArtist: String? = null
+    val detectedArtist: String? = null,
+    val detectedLanguage: String? = null
 ) {
     fun toLrcOrPlainText(): String {
         if (syncedLyrics.isNotEmpty()) {
@@ -522,6 +523,269 @@ object LyricsExtractor {
     // AI AUDIO LYRICS TRANSCRIPTION (WHISPER)
     // ==========================================
 
+    data class SupportedLanguage(
+        val code: String,
+        val displayName: String,
+        val nativeName: String,
+        val category: String,
+        val isHybrid: Boolean = false,
+        val promptHint: String = ""
+    )
+
+    val SUPPORTED_LANGUAGES = listOf(
+        SupportedLanguage("auto", "Auto Detect", "⚡ Auto", "Auto", false),
+
+        // Indian & South Asian
+        SupportedLanguage("hi", "Hindi", "हिन्दी (Devanagari)", "Indian & South Asian", false, "Hindi song lyrics, Bollywood vocal music, classical and pop"),
+        SupportedLanguage("bn", "Bengali", "বাংলা (Bangla)", "Indian & South Asian", false, "Bengali song lyrics, Rabindra Sangeet, Bangla rock and pop vocal music"),
+        SupportedLanguage("pa", "Punjabi", "ਪੰਜਾਬੀ (Gurmukhi)", "Indian & South Asian", false, "Punjabi song lyrics, Bhangra and Sufi vocal music"),
+        SupportedLanguage("ur", "Urdu", "اردو (Ghazal / Sufi)", "Indian & South Asian", false, "Urdu song lyrics, Ghazal, Coke Studio Pakistan vocal music"),
+        SupportedLanguage("ta", "Tamil", "தமிழ்", "Indian & South Asian", false, "Tamil song lyrics, Kollywood vocal music"),
+        SupportedLanguage("te", "Telugu", "తెలుగు", "Indian & South Asian", false, "Telugu song lyrics, Tollywood vocal music"),
+        SupportedLanguage("mr", "Marathi", "मराठी", "Indian & South Asian", false, "Marathi song lyrics, Bhavgeet and Natyasangeet vocal music"),
+        SupportedLanguage("gu", "Gujarati", "ગુજરાતી", "Indian & South Asian", false, "Gujarati song lyrics, Garba and Sugam Sangeet vocal music"),
+        SupportedLanguage("kn", "Kannada", "ಕನ್ನಡ", "Indian & South Asian", false, "Kannada song lyrics, Bhavageethe vocal music"),
+        SupportedLanguage("ml", "Malayalam", "മലയാളം", "Indian & South Asian", false, "Malayalam song lyrics, Mollywood vocal music"),
+        SupportedLanguage("ne", "Nepali", "नेपाली", "Indian & South Asian", false, "Nepali song lyrics, Nepali folk and pop vocal music"),
+
+        // Popular Global
+        SupportedLanguage("en", "English", "English", "Popular Global", false, "English song lyrics, pop rock acoustic vocal music"),
+        SupportedLanguage("es", "Spanish", "Español", "Popular Global", false, "Letra de canción en español, pop latino, reggaeton, flamenco vocal"),
+
+        // European
+        SupportedLanguage("fr", "French", "Français", "European", false, "Paroles de chanson en français, pop française, chanson vocale"),
+        SupportedLanguage("de", "German", "Deutsch", "European", false, "Songtext auf Deutsch, Pop Rock Vokalmusik"),
+        SupportedLanguage("it", "Italian", "Italiano", "European", false, "Testo della canzone in italiano, opera e pop musica vocale"),
+        SupportedLanguage("pt", "Portuguese", "Português", "European", false, "Letra de música em português, Bossa Nova, pop brasileiro"),
+        SupportedLanguage("ru", "Russian", "Русский", "European", false, "Текст песни на русском языке, русский рок и поп вокал"),
+        SupportedLanguage("nl", "Dutch", "Nederlands", "European", false, "Songtekst in het Nederlands, akoestische vocale muziek"),
+        SupportedLanguage("pl", "Polish", "Polski", "European", false, "Tekst piosenki po polsku, muzyka wokalna"),
+        SupportedLanguage("sv", "Swedish", "Svenska", "European", false, "Låttext på svenska, vokalmusik"),
+        SupportedLanguage("el", "Greek", "Ελληνικά", "European", false, "Στίχοι τραγουδιού στα ελληνικά, φωνητική μουσική"),
+
+        // East & Southeast Asian
+        SupportedLanguage("ja", "Japanese", "日本語 (J-Pop)", "East Asian", false, "日本語の歌詞、J-Pop、アニソン、ボーカル音楽"),
+        SupportedLanguage("ko", "Korean", "한국어 (K-Pop)", "East Asian", false, "한국어 노래 가사, K-Pop, 아이돌 발라드 보컬"),
+        SupportedLanguage("zh", "Chinese", "中文 (Mandopop)", "East Asian", false, "中文歌词，华语流行音乐，流行歌手演唱"),
+        SupportedLanguage("id", "Indonesian", "Bahasa Indonesia", "East Asian", false, "Lirik lagu bahasa Indonesia, pop akustik vokal"),
+        SupportedLanguage("tl", "Tagalog", "Filipino / Tagalog (OPM)", "East Asian", false, "Titik ng kanta sa Tagalog, Original Pilipino Music"),
+        SupportedLanguage("vi", "Vietnamese", "Tiếng Việt (V-Pop)", "East Asian", false, "Lời bài hát tiếng Việt, nhạc trẻ V-Pop trữ tình"),
+        SupportedLanguage("th", "Thai", "ไทย (T-Pop)", "East Asian", false, "เนื้อเพลงภาษาไทย, ดนตรีสากล เพลงป็อปไทย"),
+
+        // Middle Eastern
+        SupportedLanguage("ar", "Arabic", "العربية", "Middle Eastern", false, "كلمات أغنية عربية، طرب، موسيقى غنائية"),
+        SupportedLanguage("tr", "Turkish", "Türkçe", "Middle Eastern", false, "Türkçe şarkı sözleri, akustik pop rock vokal"),
+        SupportedLanguage("fa", "Persian", "فارسی (Farsi)", "Middle Eastern", false, "متن آهنگ به زبان فارسی، موسیقی سنتی و پاپ"),
+        SupportedLanguage("he", "Hebrew", "עברית", "Middle Eastern", false, "מילות שירים בעברית, מוזיקה ווקאלית")
+    )
+
+    fun getLanguageDisplayName(code: String): String {
+        val entry = SUPPORTED_LANGUAGES.firstOrNull { it.code.equals(code, ignoreCase = true) }
+        if (entry != null) {
+            return if (entry.isHybrid) "${entry.displayName} (${entry.nativeName})" else "${entry.displayName} (${entry.code.uppercase()})"
+        }
+        return java.util.Locale.forLanguageTag(code).getDisplayLanguage(java.util.Locale.ENGLISH).ifBlank { code.uppercase() }
+    }
+
+    /**
+     * Accurately detects the vocal language of an audio track.
+     * Unlike naive Whisper detection on 0..30s (where songs typically have instrumental
+     * intros that cause Whisper to hallucinate or default to 'en'), this algorithm:
+     * 1. Inspects metadata/filenames for non-Latin scripts (Devanagari, Bengali, Urdu/Arabic, Gurmukhi, etc.).
+     * 2. If Romanized, samples 20s windows across vocal-active sections (bypassing the intro)
+     *    and picks the highest-confidence language from whisper-cli's language detection head.
+     */
+    suspend fun detectAudioLanguage(
+        audioSamples: FloatArray?,
+        audioFile: File?,
+        modelName: String = "base",
+        hintTitle: String? = null,
+        hintArtist: String? = null,
+        onProgress: ((String) -> Unit)? = null
+    ): Pair<String, Float>? = withContext(Dispatchers.IO) {
+        try {
+            onProgress?.invoke("PROGRESS:0.04:Analyzing vocal sound wave to detect singing language...")
+            // 1. Check if metadata / filename / user hints contain non-Latin scripts
+            val metadataText = buildString {
+                if (!hintTitle.isNullOrBlank()) append(hintTitle).append(" ")
+                if (!hintArtist.isNullOrBlank()) append(hintArtist).append(" ")
+                if (audioFile != null) {
+                    append(audioFile.nameWithoutExtension).append(" ")
+                    try {
+                        val meta = readAudioMetadata(audioFile)
+                        if (!meta.title.isNullOrBlank()) append(meta.title).append(" ")
+                        if (!meta.artist.isNullOrBlank()) append(meta.artist).append(" ")
+                    } catch (_: Exception) {}
+                }
+            }
+
+            if (metadataText.any { it in '\u0980'..'\u09FF' }) return@withContext Pair("bn", 0.99f)
+            if (metadataText.any { it in '\u0900'..'\u097F' }) {
+                if (PhoneticTransliterator.isBengaliInDevanagari(metadataText)) {
+                    return@withContext Pair("bn", 0.99f)
+                }
+                return@withContext Pair("hi", 0.99f)
+            }
+            if (metadataText.any { it in '\u0600'..'\u06FF' }) return@withContext Pair("ur", 0.99f)
+            if (metadataText.any { it in '\u0A00'..'\u0A7F' }) return@withContext Pair("pa", 0.99f)
+            if (metadataText.any { it in '\u0B80'..'\u0BFF' }) return@withContext Pair("ta", 0.99f)
+            if (metadataText.any { it in '\u0C00'..'\u0C7F' }) return@withContext Pair("te", 0.99f)
+            if (metadataText.any { it in '\u0A80'..'\u0AFF' }) return@withContext Pair("gu", 0.99f)
+            if (metadataText.any { it in '\u0400'..'\u04FF' }) return@withContext Pair("ru", 0.99f)
+            if (metadataText.any { it in '\uAC00'..'\uD7AF' }) return@withContext Pair("ko", 0.99f)
+            if (metadataText.any { it in '\u3040'..'\u30FF' }) return@withContext Pair("ja", 0.99f)
+
+            // Inspect Romanized keywords in filename / ID3 metadata
+            val lowerMeta = metadataText.lowercase()
+            val bengaliKeywords = listOf(
+                "dugga", "asche", "amar", "amare", "sonar", "shonar", "bangla", "banglay", "bengali", "ami", "tumi",
+                "amra", "tomra", "bhalobashi", "bhalobasa", "bhalobeshe", "valobashi", "valobasa", "valobeshe",
+                "tomake", "amake", "tui", "tor", "amay", "amaye", "tomay", "tomaye", "ekla", "cholo", "gaan",
+                "geeti", "sangeet", "rabindra", "rabindrasangeet", "rabindranath", "nazrul", "anupam roy", "anupam",
+                "rupam islam", "rupam", "fossils", "cactus", "bhoomi", "chandrabindoo", "nachiketa", "kabir suman", "silajit",
+                "anjan dutt", "rupankar", "srikanto", "lopamudra", "somlata", "lagnajita", "iman chakraborty",
+                "jeet gannguli", "manna dey", "hemanta", "sandhya mukherjee", "mon majhi", "bojhena", "thakte dao",
+                "sedin", "shedin", "bondhu", "kothay", "khub", "dekho", "shono", "kotha", "kintu", "chilo",
+                "hobe", "ebong", "karon", "shei", "keno", "pujo", "puja", "kolkata", "dhaka", "bangladesh",
+                "boishakh", "bristi", "brishti", "megh", "pakhi", "nodi", "chokh", "hridoy", "majhe", "paglu",
+                "poran", "ashbe", "asbe", "hoyechilo", "obosheshe", "prithibi", "shur", "sur", "bhenge", "mor",
+                "gaicher", "shune", "ghore", "phire", "alo", "andhar", "akash", "batash", "shondha", "bhor", "raat",
+                "preme", "moner", "apni", "apnara", "tahole", "jodi", "tobe", "kichu", "kono", "sobai", "shobai",
+                "jibon", "shob", "sob", "bhalo", "valo", "shundor", "sundor", "tollywood", "svf", "hoichoi"
+            )
+            val punjabiKeywords = listOf("punjabi", "bhangra", "diljit", "dosanjh", "sidhu", "moosewala", "ap dhillon", "karan aujla", "shubh", "jatt", "pind", "munde", "kudiye", "billo", "sohniye", "gabru")
+            val urduKeywords = listOf("ghazal", "qawwali", "coke studio", "nusrat", "fateh", "ali khan", "rahat", "atif aslam", "kaavish", "mehdi hassan", "ghulam ali", "faiz", "iqbal")
+            val spanishKeywords = listOf("cancion", "letra", "espanol", "reggaeton", "despacito", "flamenco")
+            val frenchKeywords = listOf("chanson", "paroles", "francais")
+            val germanKeywords = listOf("songtext", "deutsch")
+            val japaneseKeywords = listOf("anime", "j-pop", "jpop", "vocaloid", "opening", "ending", "ost")
+            val koreanKeywords = listOf("k-pop", "kpop", "bts", "blackpink", "kdrama")
+
+            if (bengaliKeywords.any { lowerMeta.contains(it) }) return@withContext Pair("bn", 0.99f)
+            if (punjabiKeywords.any { lowerMeta.contains(it) }) return@withContext Pair("pa", 0.99f)
+            if (urduKeywords.any { lowerMeta.contains(it) }) return@withContext Pair("ur", 0.99f)
+            if (spanishKeywords.any { lowerMeta.contains(it) }) return@withContext Pair("es", 0.99f)
+            if (frenchKeywords.any { lowerMeta.contains(it) }) return@withContext Pair("fr", 0.99f)
+            if (germanKeywords.any { lowerMeta.contains(it) }) return@withContext Pair("de", 0.99f)
+            if (japaneseKeywords.any { lowerMeta.contains(it) }) return@withContext Pair("ja", 0.99f)
+            if (koreanKeywords.any { lowerMeta.contains(it) }) return@withContext Pair("ko", 0.99f)
+
+            // 2. Prepare samples
+            val samples = if (audioSamples != null && audioSamples.isNotEmpty()) {
+                audioSamples
+            } else if (audioFile != null && audioFile.exists()) {
+                try {
+                    AudioAnalysisEngine.loadAudioFile(audioFile, 16000f)
+                } catch (_: Exception) { null }
+            } else {
+                null
+            } ?: return@withContext null
+
+            val sampleRate = 16000
+            val totalSeconds = samples.size / sampleRate
+            if (totalSeconds < 5) return@withContext null
+
+            val cliExe = findWhisperCliExecutable() ?: return@withContext null
+            val modelFile = findWhisperModelFile(modelName, fallbackToInstalled = true) ?: return@withContext null
+
+            // 3. Find candidate vocal windows (after intro, e.g. 20s, 40s, 65s, 95s)
+            val candidateOffsets = mutableListOf<Int>()
+            if (totalSeconds >= 30) candidateOffsets.add(20)
+            if (totalSeconds >= 50) candidateOffsets.add(40)
+            if (totalSeconds >= 75) candidateOffsets.add(65)
+            if (totalSeconds >= 105) candidateOffsets.add(95)
+            if (candidateOffsets.isEmpty()) candidateOffsets.add(0)
+
+            // Rank candidate offsets by RMS energy so we prioritize loud vocal sections over quiet breaks
+            val rankedOffsets = candidateOffsets.sortedByDescending { startSec ->
+                val startIdx = (startSec * sampleRate).coerceIn(0, samples.size - 1)
+                val endIdx = ((startSec + 20) * sampleRate).coerceIn(startIdx, samples.size)
+                var sumSq = 0.0
+                val count = endIdx - startIdx
+                if (count > 0) {
+                    val step = (count / 1000).coerceAtLeast(1)
+                    var measured = 0
+                    for (i in startIdx until endIdx step step) {
+                        val s = samples[i]
+                        sumSq += (s * s)
+                        measured++
+                    }
+                    if (measured > 0) sumSq / measured else 0.0
+                } else 0.0
+            }
+
+            val langVotes = mutableMapOf<String, Float>()
+            var sampleStep = 0
+
+            for (startSec in rankedOffsets.take(3)) {
+                sampleStep++
+                val pFrac = 0.05f + (sampleStep * 0.035f)
+                onProgress?.invoke("PROGRESS:$pFrac:Analyzing vocal sound wave to detect singing language...")
+                val startIdx = (startSec * sampleRate).coerceIn(0, samples.size - 1)
+                val endIdx = ((startSec + 16) * sampleRate).coerceIn(startIdx, samples.size)
+                if (endIdx - startIdx < sampleRate * 4) continue
+
+                val chunkSamples = samples.copyOfRange(startIdx, endIdx)
+                val tempChunkFile = File.createTempFile("whisper_lang_detect_", ".wav")
+                try {
+                    saveSamplesToWav(chunkSamples, sampleRate, tempChunkFile)
+
+                    val detectCmd = mutableListOf(
+                        cliExe.absolutePath,
+                        "-m", modelFile.absolutePath,
+                        "-f", tempChunkFile.absolutePath,
+                        "-dl"
+                    )
+                    detectCmd.add("-ng")
+                    val c = Runtime.getRuntime().availableProcessors().coerceIn(2, 8)
+                    detectCmd.add("-t")
+                    detectCmd.add(c.toString())
+
+                    val pb = ProcessBuilder(detectCmd)
+                    pb.directory(cliExe.parentFile ?: File("."))
+                    pb.redirectErrorStream(true)
+                    val proc = pb.start()
+                    val output = proc.inputStream.bufferedReader(StandardCharsets.UTF_8).readText()
+                    proc.waitFor()
+
+                    val regex = Regex("""auto-detected language:\s*([a-zA-Z]{2,3})\s*\(p\s*=\s*([0-9.]+)\)""")
+                    val match = regex.find(output)
+                    if (match != null) {
+                        val lang = match.groupValues[1].lowercase()
+                        val prob = match.groupValues[2].toFloatOrNull() ?: 0.5f
+
+                        // Boost Bengali over Hindi if detected: Whisper's base prior distribution is 50x biased to Hindi.
+                        val effectiveProb = if (lang == "bn") prob * 1.30f else prob
+                        langVotes[lang] = (langVotes[lang] ?: 0f) + effectiveProb
+
+                        if (effectiveProb >= 0.70f) {
+                            break
+                        }
+                    }
+                } finally {
+                    tempChunkFile.delete()
+                }
+            }
+
+            val bestEntry = langVotes.maxByOrNull { it.value }
+            val bestLang = bestEntry?.key
+            val bestProb = if (sampleStep > 0 && bestEntry != null) bestEntry.value / sampleStep else 0f
+
+            if (bestLang != null && bestProb >= 0.28f) {
+                val langName = getLanguageDisplayName(bestLang)
+                val conf = (bestProb.coerceAtMost(1f) * 100).toInt()
+                onProgress?.invoke("PROGRESS:0.16:Detected singing language: $langName ($bestLang, $conf% confidence). Initializing AI...")
+                Pair(bestLang, bestProb)
+            } else {
+                onProgress?.invoke("PROGRESS:0.16:Language auto-detection complete. Initializing AI...")
+                null
+            }
+        } catch (e: Exception) {
+            System.err.println("Language detection error: ${e.message}")
+            null
+        }
+    }
+
     /**
      * Transcribes vocals directly from an audio file or raw PCM float samples using local OpenAI Whisper.
      * Prioritizes ultra-lightweight, standalone whisper.cpp (~80 MB, 0 Python/PyTorch dependencies).
@@ -530,35 +794,115 @@ object LyricsExtractor {
     suspend fun transcribeWithAi(
         audioFile: File? = null,
         audioSamples: FloatArray? = null,
-        modelName: String = "tiny",
+        modelName: String = "base",
         language: String? = null,
+        hintTitle: String? = null,
+        hintArtist: String? = null,
         onProgress: ((String) -> Unit)? = null
     ): ExtractedLyricsResult? = withContext(Dispatchers.IO) {
         lastError = null
+
+        val langNorm = language?.lowercase()?.trim() ?: "auto"
+        var resolvedLanguage = langNorm
+        val isHybrid = langNorm in listOf("hinglish", "benglish", "tanglish", "pinglish")
+
+        if ((resolvedLanguage == "auto" || resolvedLanguage.isBlank()) && !isHybrid) {
+            val detected = detectAudioLanguage(
+                audioSamples = audioSamples,
+                audioFile = audioFile,
+                modelName = modelName,
+                hintTitle = hintTitle,
+                hintArtist = hintArtist,
+                onProgress = onProgress
+            )
+            if (detected != null) {
+                // If detected language is Hindi with moderate acoustic confidence (< 0.80) and no explicit Hindi metadata,
+                // keep resolvedLanguage = "auto" so Whisper C++ transcribes dynamically rather than locking with a Bollywood Hindi prompt.
+                val isAmbiguousHindi = detected.first == "hi" && detected.second < 0.80f
+                if (!isAmbiguousHindi) {
+                    resolvedLanguage = detected.first
+                }
+            }
+        } else {
+            val langName = getLanguageDisplayName(resolvedLanguage)
+            onProgress?.invoke("PROGRESS:0.10:Preparing vocal audio for $langName transcription...")
+        }
 
         // 1. Primary: Ultra-fast standalone C++ Whisper (whisper.cpp) - Zero Python, Zero PyTorch, Zero DLL conflicts
         val cppResult = transcribeWithWhisperCpp(
             audioFile = audioFile,
             audioSamples = audioSamples,
             modelName = modelName,
-            language = language,
+            language = resolvedLanguage,
             onProgress = onProgress
         )
         if (cppResult != null) {
-            return@withContext cppResult
+            val isBengali = PhoneticTransliterator.isBengaliInDevanagari(cppResult.plainLyrics)
+            val adjusted = if (isBengali) {
+                val convertedPlain = PhoneticTransliterator.devanagariToBengali(cppResult.plainLyrics)
+                val convertedSynced = cppResult.syncedLyrics.map {
+                    it.copy(text = PhoneticTransliterator.devanagariToBengali(it.text))
+                }
+                cppResult.copy(
+                    plainLyrics = convertedPlain,
+                    syncedLyrics = convertedSynced,
+                    detectedLanguage = "bn"
+                )
+            } else if (cppResult.plainLyrics.any { it in '\u0980'..'\u09FF' }) {
+                cppResult.copy(detectedLanguage = "bn")
+            } else if (cppResult.detectedLanguage == null && resolvedLanguage != "auto") {
+                cppResult.copy(detectedLanguage = resolvedLanguage)
+            } else cppResult
+
+            return@withContext if (isHybrid) {
+                adjusted.copy(
+                    plainLyrics = PhoneticTransliterator.processHybridText(adjusted.plainLyrics, langNorm),
+                    syncedLyrics = adjusted.syncedLyrics.map {
+                        it.copy(text = PhoneticTransliterator.processHybridText(it.text, langNorm))
+                    }
+                )
+            } else adjusted
         }
         if (lastError?.contains("No vocals detected", ignoreCase = true) == true) {
             return@withContext null
         }
 
         // 2. Secondary fallback: Python Whisper script
-        transcribeWithPythonWhisper(
+        val pyResult = transcribeWithPythonWhisper(
             audioFile = audioFile,
             audioSamples = audioSamples,
             modelName = modelName,
-            language = language,
+            language = resolvedLanguage,
             onProgress = onProgress
         )
+        if (pyResult != null) {
+            val isBengali = PhoneticTransliterator.isBengaliInDevanagari(pyResult.plainLyrics)
+            val adjusted = if (isBengali) {
+                val convertedPlain = PhoneticTransliterator.devanagariToBengali(pyResult.plainLyrics)
+                val convertedSynced = pyResult.syncedLyrics.map {
+                    it.copy(text = PhoneticTransliterator.devanagariToBengali(it.text))
+                }
+                pyResult.copy(
+                    plainLyrics = convertedPlain,
+                    syncedLyrics = convertedSynced,
+                    detectedLanguage = "bn"
+                )
+            } else if (pyResult.plainLyrics.any { it in '\u0980'..'\u09FF' }) {
+                pyResult.copy(detectedLanguage = "bn")
+            } else if (pyResult.detectedLanguage == null && resolvedLanguage != "auto") {
+                pyResult.copy(detectedLanguage = resolvedLanguage)
+            } else pyResult
+
+            if (isHybrid) {
+                adjusted.copy(
+                    plainLyrics = PhoneticTransliterator.processHybridText(adjusted.plainLyrics, langNorm),
+                    syncedLyrics = adjusted.syncedLyrics.map {
+                        it.copy(text = PhoneticTransliterator.processHybridText(it.text, langNorm))
+                    },
+                    detectedLanguage = langNorm
+                )
+            } else adjusted
+        } else null
     }
 
     /**
@@ -567,12 +911,12 @@ object LyricsExtractor {
     suspend fun transcribeWithWhisperCpp(
         audioFile: File? = null,
         audioSamples: FloatArray? = null,
-        modelName: String = "tiny",
+        modelName: String = "base",
         language: String? = null,
         onProgress: ((String) -> Unit)? = null
     ): ExtractedLyricsResult? = withContext(Dispatchers.IO) {
         val cliExe = findWhisperCliExecutable() ?: return@withContext null
-        val modelFile = findWhisperModelFile(modelName) ?: return@withContext null
+        val modelFile = findWhisperModelFile(modelName, fallbackToInstalled = true) ?: return@withContext null
 
         var tempAudioFile: File? = null
         val targetAudioFile: File = if (audioSamples != null && audioSamples.isNotEmpty()) {
@@ -595,7 +939,7 @@ object LyricsExtractor {
         val expectedJsonFile = File(tempOutputPrefix.absolutePath + ".json")
 
         try {
-            onProgress?.invoke("Loading whisper.cpp (${modelFile.nameWithoutExtension})...")
+            onProgress?.invoke("PROGRESS:0.18:Loading AI model (${modelFile.nameWithoutExtension})...")
 
             val command = mutableListOf<String>()
             command.add(cliExe.absolutePath)
@@ -603,35 +947,62 @@ object LyricsExtractor {
             command.add(modelFile.absolutePath)
             command.add("-f")
             command.add(targetAudioFile.absolutePath)
-            command.add("-oj")
+            command.add("-ojf")
             command.add("-of")
             command.add(tempOutputPrefix.absolutePath)
             command.add("-pp")
+            // Segment splitting for lyric line synchronization (crucial for large & turbo models):
+            // Prevents Whisper from emitting 20-30s monolithic paragraph blocks.
+            command.add("-ml")
+            command.add("40") // Max ~40 characters per segment (1 lyric line)
+            command.add("-sow") // Split strictly on word boundaries
             // Anti-hallucination and anti-repetition parameters:
-            command.add("-mc")
-            command.add("128") // Limit context window to prevent carrying hallucinated loops into next segments
             command.add("-sns") // Suppress non-speech tokens
             command.add("-nth")
             command.add("0.65") // Higher threshold so guitar/drums aren't hallucinated as singing
 
-            val cores = Runtime.getRuntime().availableProcessors().coerceIn(2, 8)
+            // Pure CPU multi-core execution (AVX2 optimized)
+            command.add("-ng")
+
+            val cores = Runtime.getRuntime().availableProcessors().coerceIn(4, 12)
             command.add("-t")
             command.add(cores.toString())
 
             val langNorm = language?.lowercase()?.trim() ?: "auto"
-            if (langNorm != "auto" && langNorm.isNotBlank()) {
+            val resolvedLang = langNorm
+            val isHybrid = langNorm in listOf("hinglish", "benglish", "tanglish", "pinglish")
+
+            // For hybrid languages, transcribe using the native speech model (hi for Hinglish, bn for Benglish, etc.)
+            // and then phonetically transliterate into Roman sing-along text.
+            val whisperLang = when (langNorm) {
+                "hinglish" -> "hi"
+                "benglish" -> "bn"
+                "tanglish" -> "ta"
+                "pinglish" -> "pa"
+                else -> resolvedLang
+            }
+
+            if (whisperLang != "auto" && whisperLang.isNotBlank()) {
                 command.add("-l")
-                command.add(langNorm)
-                if (langNorm == "hi" || langNorm == "ur") {
-                    command.add("--prompt")
-                    command.add("Hindi song lyrics, Hinglish Bollywood vocal music")
-                } else if (langNorm == "bn") {
-                    command.add("--prompt")
-                    command.add("Bengali song lyrics, Bangla vocal music")
-                }
+                command.add(whisperLang)
             } else {
                 command.add("-l")
                 command.add("auto")
+            }
+
+            // Language acoustic and script prompts to condition Whisper against hallucinating wrong Indic scripts
+            val promptText = when (whisperLang) {
+                "bn" -> "বাংলা গান, রবীন্দ্রসঙ্গীত, আধুনিক বাংলা গানের লিরিক্স"
+                "hi" -> "हिन्दी गाने के बोल, बॉलीवुड संगीत"
+                "pa" -> "ਪੰਜਾਬੀ ਗੀਤਾਂ ਦੇ ਬੋਲ, ਭੰਗੜਾ ਸੰਗੀਤ"
+                "ur" -> "اردو گانے، غزل اور صوفی موسیقی کے بول"
+                "ta" -> "தமிழ் பாடல் வரிகள்"
+                "te" -> "తెలుగు పాట సాహిత్యం"
+                else -> null
+            }
+            if (!promptText.isNullOrBlank()) {
+                command.add("--prompt")
+                command.add(promptText)
             }
 
             val pb = ProcessBuilder(command)
@@ -642,17 +1013,91 @@ object LyricsExtractor {
             val process = pb.start()
             val reader = process.inputStream.bufferedReader(StandardCharsets.UTF_8)
             val fullOutput = StringBuilder()
+            var totalAudioDurationSec = if (audioSamples != null && audioSamples.isNotEmpty()) {
+                audioSamples.size / 16000f
+            } else 0f
+
             var line: String?
+            var latestEndSec = 0f
+            var whisperInternalPct = 0f
+            var lastVocalText = ""
+
+            // Parse a whisper timestamp string like "00:04.320" or "00:00:04.320" into seconds
+            fun parseTimestampSec(ts: String): Float {
+                val parts = ts.trim().split(":")
+                return when (parts.size) {
+                    2 -> (parts[0].toFloatOrNull() ?: 0f) * 60f + (parts[1].toFloatOrNull() ?: 0f)
+                    3 -> (parts[0].toFloatOrNull() ?: 0f) * 3600f +
+                         (parts[1].toFloatOrNull() ?: 0f) * 60f +
+                         (parts[2].toFloatOrNull() ?: 0f)
+                    else -> 0f
+                }
+            }
+
             while (reader.readLine().also { line = it } != null) {
                 val l = line?.trim() ?: continue
                 fullOutput.append(l).append("\n")
-                if (l.startsWith("[") && l.contains("-->")) {
-                    val textPart = l.substringAfter("]").trim()
-                    if (textPart.isNotBlank() && !textPart.contains("BLANK_AUDIO", ignoreCase = true)) {
-                        onProgress?.invoke("Transcribing: $textPart")
+
+                // 1. Parse audio duration from whisper init line if not known
+                // e.g. "main: processing 'file.wav' (320000 samples, 20.0 sec)..."
+                if (totalAudioDurationSec <= 0f && l.contains("main: processing") && l.contains("sec)")) {
+                    val secMatch = Regex("""\(([0-9.]+)\s*sec\)""").find(l)
+                    if (secMatch != null) {
+                        totalAudioDurationSec = secMatch.groupValues[1].toFloatOrNull() ?: 0f
                     }
+                }
+
+                // 2. Parse whisper internal progress callback (-pp flag):
+                // "whisper_print_progress_callback: progress = 42%"
+                if (l.contains("whisper_print_progress_callback") && l.contains("%")) {
+                    val pctMatch = Regex("""progress\s*=\s*(\d+)%""").find(l)
+                    if (pctMatch != null) {
+                        val pInt = pctMatch.groupValues[1].toIntOrNull() ?: 0
+                        whisperInternalPct = pInt / 100f
+                        val effectiveFrac = 0.20f + (whisperInternalPct * 0.78f)
+                        val textDisplay = if (lastVocalText.isNotBlank()) "Transcribing: $lastVocalText" else "Transcribing vocals (${pInt}%)..."
+                        onProgress?.invoke("PROGRESS:$effectiveFrac:$textDisplay")
+                    }
+                }
+
+                // 3. Segment lines:
+                // Whisper.cpp segment lines look like: [00:00.000 --> 00:04.320]  text
+                // or with hours:                       [00:00:00.000 --> 00:00:04.320]  text
+                if (l.startsWith("[") && l.contains("-->")) {
+                    val arrowIdx   = l.indexOf("-->")
+                    val closeBracket = l.indexOf("]", arrowIdx)
+                    // Extract the end timestamp (between "-->" and "]")
+                    val endTsRaw = if (closeBracket > arrowIdx + 3)
+                        l.substring(arrowIdx + 3, closeBracket).trim()
+                    else ""
+                    val segEnd = if (endTsRaw.isNotEmpty()) parseTimestampSec(endTsRaw) else 0f
+
+                    // Text follows the closing bracket
+                    val textPart = if (closeBracket in 0 until l.length)
+                        l.substring(closeBracket + 1).trim()
+                    else l.substringAfter("]").trim()
+
+                    if (segEnd > latestEndSec) latestEndSec = segEnd
+
+                    val isCleanText = textPart.isNotBlank() &&
+                        !textPart.contains("BLANK_AUDIO", ignoreCase = true) &&
+                        !isSoundEffectTag(textPart)
+
+                    if (isCleanText) {
+                        lastVocalText = textPart
+                    }
+
+                    val timeProgress = if (totalAudioDurationSec > 0f) {
+                        (latestEndSec / totalAudioDurationSec).coerceIn(0f, 1f)
+                    } else 0f
+
+                    val combinedProgress = maxOf(whisperInternalPct, timeProgress)
+                    val overallFrac = 0.20f + (combinedProgress * 0.78f)
+                    val textDisplay = if (lastVocalText.isNotBlank()) "Transcribing: $lastVocalText" else "Transcribing vocals (${(combinedProgress * 100).toInt()}%)..."
+
+                    onProgress?.invoke("PROGRESS:$overallFrac:$textDisplay")
                 } else if (l.contains("processing", ignoreCase = true) || l.contains("loading model", ignoreCase = true)) {
-                    onProgress?.invoke("Whisper AI processing audio...")
+                    onProgress?.invoke("PROGRESS:0.20:AI processing vocal audio...")
                 }
             }
 
@@ -660,11 +1105,19 @@ object LyricsExtractor {
 
             if (expectedJsonFile.exists() && expectedJsonFile.length() > 0) {
                 val jsonText = expectedJsonFile.readText(StandardCharsets.UTF_8)
-                val parsed = parseWhisperCppJson(jsonText)
+                val parsed = parseWhisperCppJson(jsonText, if (resolvedLang != "auto") resolvedLang else null)
                 if (parsed != null) {
-                    onProgress?.invoke("Transcription complete!")
+                    val finalResult = if (isHybrid) {
+                        parsed.copy(
+                            plainLyrics = PhoneticTransliterator.processHybridText(parsed.plainLyrics, langNorm),
+                            syncedLyrics = parsed.syncedLyrics.map {
+                                it.copy(text = PhoneticTransliterator.processHybridText(it.text, langNorm))
+                            }
+                        )
+                    } else parsed
+                    onProgress?.invoke("PROGRESS:1.0:Finalizing lyrics & timestamps...")
                     lastError = null
-                    return@withContext parsed
+                    return@withContext finalResult
                 }
             }
 
@@ -741,8 +1194,8 @@ object LyricsExtractor {
                 .replace("&gt;", ">")
                 .trim()
 
-            if (line.isBlank()) {
-                if (cleanedLines.isNotEmpty() && cleanedLines.last().isNotBlank()) {
+            if (line.isBlank() || line.none { it.isLetter() }) {
+                if (line.isBlank() && cleanedLines.isNotEmpty() && cleanedLines.last().isNotBlank()) {
                     cleanedLines.add("")
                 }
                 lastNormalized = ""
@@ -765,7 +1218,7 @@ object LyricsExtractor {
                 }
             }
 
-            val normalized = line.lowercase().replace(Regex("[^a-z0-9 ]"), "").trim()
+            val normalized = line.lowercase().replace(Regex("""[^\p{L}\p{Nd}\s]"""), "").trim()
 
             if (normalized == lastNormalized && normalized.isNotBlank()) {
                 consecutiveCount++
@@ -783,7 +1236,7 @@ object LyricsExtractor {
         // Secondary pass: Detect and collapse global hallucination loops
         val frequencyMap = mutableMapOf<String, Int>()
         for (l in cleanedLines) {
-            val norm = l.lowercase().replace(Regex("[^a-z0-9 ]"), "").trim()
+            val norm = l.lowercase().replace(Regex("""[^\p{L}\p{Nd}\s]"""), "").trim()
             if (norm.length in 3..25) {
                 frequencyMap[norm] = (frequencyMap[norm] ?: 0) + 1
             }
@@ -794,7 +1247,7 @@ object LyricsExtractor {
             val finalLines = mutableListOf<String>()
             val phraseSeenCount = mutableMapOf<String, Int>()
             for (l in cleanedLines) {
-                val norm = l.lowercase().replace(Regex("[^a-z0-9 ]"), "").trim()
+                val norm = l.lowercase().replace(Regex("""[^\p{L}\p{Nd}\s]"""), "").trim()
                 if (norm in overRepeatedPhrases) {
                     val count = (phraseSeenCount[norm] ?: 0) + 1
                     phraseSeenCount[norm] = count
@@ -804,10 +1257,10 @@ object LyricsExtractor {
                 }
                 finalLines.add(l)
             }
-            return finalLines.joinToString("\n").trim()
+            return PhoneticTransliterator.sanitizeIndicScript(finalLines.joinToString("\n").trim())
         }
 
-        return cleanedLines.joinToString("\n").trim()
+        return PhoneticTransliterator.sanitizeIndicScript(cleanedLines.joinToString("\n").trim())
     }
 
     /**
@@ -828,7 +1281,7 @@ object LyricsExtractor {
                 .replace("&gt;", ">")
                 .trim()
 
-            if (text.isBlank()) continue
+            if (text.isBlank() || text.none { it.isLetter() }) continue
             if (isSoundEffectTag(text)) continue
 
             if (text.startsWith("[") && text.endsWith("]")) {
@@ -842,7 +1295,7 @@ object LyricsExtractor {
                 }
             }
 
-            val norm = text.lowercase().replace(Regex("[^a-z0-9 ]"), "").trim()
+            val norm = text.lowercase().replace(Regex("""[^\p{L}\p{Nd}\s]"""), "").trim()
             if (norm == lastNorm && norm.isNotBlank()) {
                 consecutiveCount++
                 if (consecutiveCount >= 2) continue
@@ -851,19 +1304,75 @@ object LyricsExtractor {
                 consecutiveCount = 0
             }
 
-            cleaned.add(SyncedLyricLine(seg.timestampSeconds, text))
+            val sanitizedText = PhoneticTransliterator.sanitizeIndicScript(text)
+            cleaned.add(SyncedLyricLine(seg.timestampSeconds, sanitizedText))
         }
 
         return cleaned
     }
 
     /**
-     * Parses output JSON generated by whisper-cli (-oj).
+     * Splits Whisper token stream into natural, synchronized lyric lines.
+     * Uses silence gaps (>= 0.85s), punctuation, and phrase length constraints
+     * to ensure large/turbo models produce accurately timed lines rather than 20-30s blocks.
      */
-    fun parseWhisperCppJson(json: String): ExtractedLyricsResult? {
+    fun extractLyricLinesFromTokens(tokensArr: JsonArray): List<SyncedLyricLine> {
+        val result = mutableListOf<SyncedLyricLine>()
+        val currentLineWords = StringBuilder()
+        var lineStartSec: Double? = null
+        var prevTokenEndSec = 0.0
+
+        for (i in 0 until tokensArr.size()) {
+            val tok = tokensArr.get(i).asJsonObject
+            val text = tok.get("text")?.asString ?: ""
+            if (text.startsWith("[_") || text.startsWith("<|") || text.endsWith("_]")) continue
+
+            val offsets = if (tok.has("offsets")) tok.getAsJsonObject("offsets") else null
+            val tokStart = if (offsets != null && offsets.has("from")) offsets.get("from").asLong / 1000.0 else prevTokenEndSec
+            val tokEnd = if (offsets != null && offsets.has("to")) offsets.get("to").asLong / 1000.0 else tokStart
+
+            if (lineStartSec == null) {
+                lineStartSec = tokStart
+            }
+
+            val gap = tokStart - prevTokenEndSec
+            val isPunctuationBreak = text.endsWith(".") || text.endsWith("?") || text.endsWith("!") || text.endsWith("|") || text.contains("\n")
+            val isCommaBreak = (text.endsWith(",") || text.endsWith("，")) && currentLineWords.length >= 20
+            val isGapBreak = gap >= 0.85 && currentLineWords.isNotBlank()
+            val isLengthBreak = currentLineWords.length >= 45 && text.startsWith(" ")
+
+            currentLineWords.append(text)
+            prevTokenEndSec = tokEnd
+
+            if (isPunctuationBreak || isCommaBreak || isGapBreak || isLengthBreak) {
+                val cleaned = currentLineWords.toString().trim()
+                if (cleaned.isNotBlank()) {
+                    result.add(SyncedLyricLine(lineStartSec, cleaned))
+                }
+                currentLineWords.clear()
+                lineStartSec = null
+            }
+        }
+
+        val remaining = currentLineWords.toString().trim()
+        if (remaining.isNotBlank()) {
+            result.add(SyncedLyricLine(lineStartSec ?: prevTokenEndSec, remaining))
+        }
+
+        return result
+    }
+
+    /**
+     * Parses output JSON generated by whisper-cli (-oj or -ojf).
+     */
+    fun parseWhisperCppJson(json: String, detectedLanguage: String? = null): ExtractedLyricsResult? {
         try {
             val root = JsonParser.parseString(json).asJsonObject
             val transArray = root.getAsJsonArray("transcription") ?: return null
+            val detectedFromRoot = if (root.has("result")) {
+                root.getAsJsonObject("result")?.get("language")?.asString
+            } else null
+            val finalLanguage = detectedLanguage ?: detectedFromRoot
             val rawSegments = mutableListOf<SyncedLyricLine>()
 
             for (elem in transArray) {
@@ -885,7 +1394,30 @@ object LyricsExtractor {
                     }
                 }
                 val finalStart = startSec ?: 0.0
-                rawSegments.add(SyncedLyricLine(finalStart, rawText))
+
+                // If full token-level timestamps are present (-ojf), extract refined lyric lines!
+                var addedFromTokens = false
+                if (segObj.has("tokens")) {
+                    val tokensArr = segObj.getAsJsonArray("tokens")
+                    if (tokensArr != null && tokensArr.size() > 1) {
+                        val subLines = extractLyricLinesFromTokens(tokensArr)
+                        if (subLines.isNotEmpty()) {
+                            rawSegments.addAll(subLines)
+                            addedFromTokens = true
+                        }
+                    }
+                }
+
+                if (!addedFromTokens) {
+                    if (rawText.contains("\n")) {
+                        val lines = rawText.lines().map { it.trim() }.filter { it.isNotBlank() }
+                        lines.forEachIndexed { i, l ->
+                            rawSegments.add(SyncedLyricLine(finalStart + (i * 2.5), l))
+                        }
+                    } else {
+                        rawSegments.add(SyncedLyricLine(finalStart, rawText))
+                    }
+                }
             }
 
             val cleanedSegments = cleanAndDeduplicateSegments(rawSegments)
@@ -897,7 +1429,8 @@ object LyricsExtractor {
             return ExtractedLyricsResult(
                 plainLyrics = plain,
                 syncedLyrics = cleanedSegments,
-                source = "ai_whisper"
+                source = "ai_whisper",
+                detectedLanguage = finalLanguage
             )
         } catch (e: Exception) {
             System.err.println("Failed to parse whisper.cpp json: ${e.message}")
@@ -959,9 +1492,9 @@ object LyricsExtractor {
     }
 
     /**
-     * Finds GGML model file (e.g. ggml-tiny.bin, ggml-base.bin) for whisper.cpp.
+     * Finds GGML model file (e.g. ggml-base.bin, ggml-large-v3-turbo.bin, ggml-large-v3.bin) for whisper.cpp.
      */
-    fun findWhisperModelFile(modelName: String = "tiny"): File? {
+    fun findWhisperModelFile(modelName: String = "base", fallbackToInstalled: Boolean = false): File? {
         val projectRoot = findProjectRoot()
         val userHome = System.getProperty("user.home") ?: ""
         val userDir = System.getProperty("user.dir") ?: "."
@@ -970,8 +1503,12 @@ object LyricsExtractor {
         } catch (_: Exception) { null }
         val appDir = if (codeLocation != null && !codeLocation.isDirectory) codeLocation.parentFile else codeLocation
 
-        val norm = if (modelName.isBlank()) "tiny" else modelName.lowercase()
-        val targetFile = "ggml-$norm.bin"
+        val raw = if (modelName.isBlank()) "base" else modelName.trim().lowercase()
+        val candidateNames = when (raw) {
+            "turbo", "large-turbo", "large-v3-turbo", "turbo-large" -> listOf("ggml-large-v3-turbo.bin", "ggml-turbo.bin")
+            "large", "large-v3" -> listOf("ggml-large-v3.bin", "ggml-large.bin")
+            else -> listOf("ggml-$raw.bin")
+        }
 
         val searchDirs = listOf(
             File("tools/whisper/models"),
@@ -983,23 +1520,37 @@ object LyricsExtractor {
             projectRoot?.let { File(it, "tools/whisper/models") },
             projectRoot?.let { File(it, "desktopApp/build/compose/binaries/main/app/TabsLite/whisper/models") },
             File(userHome, "scoop/apps/whisper-cpp/current/models"),
-            File(userHome, ".cache/whisper")
+            File(userHome, ".cache/whisper"),
+            File(userHome, ".chordstudio/models")
         ).filterNotNull()
 
         for (dir in searchDirs) {
-            val f = File(dir, targetFile)
-            if (f.exists() && f.length() > 1000) return f
+            for (candidate in candidateNames) {
+                val f = File(dir, candidate)
+                if (f.exists() && f.length() > 1000) return f
+            }
         }
 
-        for (dir in searchDirs) {
-            val f = File(dir, "ggml-tiny.bin")
-            if (f.exists() && f.length() > 1000) return f
-        }
+        if (fallbackToInstalled) {
+            val fallbackPriorities = listOf(
+                "ggml-base.bin",
+                "ggml-large-v3-turbo.bin",
+                "ggml-small.bin",
+                "ggml-large-v3.bin",
+                "ggml-medium.bin"
+            )
+            for (modelFileName in fallbackPriorities) {
+                for (dir in searchDirs) {
+                    val f = File(dir, modelFileName)
+                    if (f.exists() && f.length() > 1000) return f
+                }
+            }
 
-        for (dir in searchDirs) {
-            if (dir.isDirectory) {
-                val anyBin = dir.listFiles { file -> file.isFile && file.name.endsWith(".bin") }?.firstOrNull()
-                if (anyBin != null && anyBin.length() > 1000) return anyBin
+            for (dir in searchDirs) {
+                if (dir.isDirectory) {
+                    val anyBin = dir.listFiles { file -> file.isFile && file.name.endsWith(".bin") }?.firstOrNull()
+                    if (anyBin != null && anyBin.length() > 1000) return anyBin
+                }
             }
         }
         return null
@@ -1011,7 +1562,7 @@ object LyricsExtractor {
     suspend fun transcribeWithPythonWhisper(
         audioFile: File? = null,
         audioSamples: FloatArray? = null,
-        modelName: String = "tiny",
+        modelName: String = "base",
         language: String? = null,
         onProgress: ((String) -> Unit)? = null
     ): ExtractedLyricsResult? = withContext(Dispatchers.IO) {
@@ -1038,7 +1589,7 @@ object LyricsExtractor {
             }
 
             val scriptFile = resolveScriptFile()
-            onProgress?.invoke("Loading Whisper AI ($modelName model)...")
+            onProgress?.invoke("PROGRESS:0.18:Loading AI ($modelName model)...")
 
             val command = mutableListOf<String>()
             command.add(pythonCmd)
@@ -1054,6 +1605,7 @@ object LyricsExtractor {
             pb.redirectErrorStream(true)
             pb.directory(File(System.getProperty("user.home") ?: "."))
             pb.environment()["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+            pb.environment()["CHORD_STUDIO_DEVICE"] = "cpu"
             ensureFfmpegInEnvironment(pb)
 
             val process = pb.start()
@@ -1064,9 +1616,16 @@ object LyricsExtractor {
                 val l = line?.trim() ?: continue
                 fullOutput.append(l).append("\n")
                 if (l.contains("%|") || l.contains("frames/s")) {
-                    onProgress?.invoke("Transcribing vocals: $l")
+                    val pctMatch = Regex("""(\d+)%""").find(l)
+                    val pInt = pctMatch?.groupValues?.get(1)?.toIntOrNull()
+                    if (pInt != null) {
+                        val overallFrac = 0.20f + ((pInt / 100f) * 0.78f)
+                        onProgress?.invoke("PROGRESS:$overallFrac:Transcribing vocals ($pInt%)...")
+                    } else {
+                        onProgress?.invoke("PROGRESS:0.35:Transcribing vocals...")
+                    }
                 } else if (l.contains("Detected language:")) {
-                    onProgress?.invoke(l)
+                    onProgress?.invoke("PROGRESS:0.20:$l")
                 }
             }
 
@@ -1091,9 +1650,19 @@ object LyricsExtractor {
                 }
                 val result = parseWhisperJson(jsonContent)
                 if (result != null) {
-                    onProgress?.invoke("Transcription complete!")
+                    val langNorm = language?.lowercase()?.trim() ?: "auto"
+                    val isHybrid = langNorm in listOf("hinglish", "benglish", "tanglish", "pinglish")
+                    val finalResult = if (isHybrid) {
+                        result.copy(
+                            plainLyrics = PhoneticTransliterator.processHybridText(result.plainLyrics, langNorm),
+                            syncedLyrics = result.syncedLyrics.map {
+                                it.copy(text = PhoneticTransliterator.processHybridText(it.text, langNorm))
+                            }
+                        )
+                    } else result
+                    onProgress?.invoke("PROGRESS:1.0:Finalizing lyrics & timestamps...")
                     lastError = null
-                    return@withContext result
+                    return@withContext finalResult
                 }
             }
 
@@ -1113,7 +1682,7 @@ object LyricsExtractor {
     /**
      * Searches upward from current working directory and class code source to find project root containing .venv or transcribe_lyrics.py
      */
-    private fun findProjectRoot(): File? {
+    fun findProjectRoot(): File? {
         val startDirs = mutableListOf<File>()
         try {
             startDirs.add(File(System.getProperty("user.dir") ?: "."))
@@ -1182,6 +1751,7 @@ object LyricsExtractor {
      */
     fun parseWhisperJson(json: String): ExtractedLyricsResult? {
         val overallText = extractJsonField(json, "text") ?: ""
+        val detectedLang = extractJsonField(json, "language")
         val segments = mutableListOf<SyncedLyricLine>()
 
         val segIdx = json.indexOf("\"segments\"")
@@ -1199,7 +1769,14 @@ object LyricsExtractor {
                         val startSec = startMatcher.group(1).toDoubleOrNull() ?: 0.0
                         val text = unescapeJson(textMatcher.group(1)).trim()
                         if (text.isNotBlank()) {
-                            segments.add(SyncedLyricLine(startSec, text))
+                            if (text.contains("\n")) {
+                                val sub = text.lines().map { it.trim() }.filter { it.isNotBlank() }
+                                sub.forEachIndexed { i, l ->
+                                    segments.add(SyncedLyricLine(startSec + (i * 2.5), l))
+                                }
+                            } else {
+                                segments.add(SyncedLyricLine(startSec, text))
+                            }
                         }
                     }
                 }
@@ -1220,7 +1797,8 @@ object LyricsExtractor {
         return ExtractedLyricsResult(
             plainLyrics = plain,
             syncedLyrics = cleanedSegments,
-            source = "ai_whisper"
+            source = "ai_whisper",
+            detectedLanguage = detectedLang
         )
     }
 
@@ -1466,15 +2044,36 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 import json
 import whisper
 
-def transcribe(audio_path, model_name="tiny", output_file=None, language=None):
+def transcribe(audio_path, model_name="base", output_file=None, language=None):
     if not os.path.exists(audio_path):
         return {"error": f"Audio file not found: {audio_path}"}
-    print(f"Loading Whisper model: {model_name}", flush=True)
-    model = whisper.load_model(model_name)
+    if model_name in ("large-v3-turbo", "turbo-large", "large_turbo"):
+        resolved_model = "large-v3-turbo"
+    elif model_name in ("large", "large-v3"):
+        resolved_model = "large-v3"
+    elif not model_name or model_name.lower() in ("default", "tiny"):
+        resolved_model = "base"
+    else:
+        resolved_model = model_name
+    print(f"Loading Whisper model: {resolved_model}", flush=True)
+    model = whisper.load_model(resolved_model)
     print("Model loaded. Starting transcription...", flush=True)
-    kwargs = {"verbose": True, "fp16": False, "condition_on_previous_text": False}
+    kwargs = {"verbose": True, "fp16": False, "condition_on_previous_text": False, "word_timestamps": True}
     if language and language.lower() not in ("auto", "none", ""):
         kwargs["language"] = language.lower()
+    else:
+        try:
+            audio_data = whisper.load_audio(audio_path)
+            if len(audio_data) >= 16000 * 35:
+                vocal_chunk = audio_data[16000 * 20 : 16000 * 50]
+                mel = whisper.log_mel_spectrogram(whisper.pad_or_trim(vocal_chunk))
+                _, probs = model.detect_language(mel)
+                best_lang = max(probs, key=probs.get)
+                if probs[best_lang] >= 0.40:
+                    kwargs["language"] = best_lang
+                    print(f"Detected vocal language: {best_lang} ({probs[best_lang]:.2f})", flush=True)
+        except Exception as e:
+            print(f"Vocal detection note: {e}", flush=True)
     try:
         result = model.transcribe(audio_path, **kwargs)
     except Exception as e:
@@ -1486,11 +2085,44 @@ def transcribe(audio_path, model_name="tiny", output_file=None, language=None):
     for s in result.get("segments", []):
         if s.get("no_speech_prob", 0) > 0.85:
             continue
-        start = round(float(s["start"]), 2)
-        end = round(float(s["end"]), 2)
-        text = s["text"].strip()
-        if text:
-            segments.append({"start": start, "end": end, "text": text})
+        words = s.get("words", [])
+        if words and (float(s["end"]) - float(s["start"]) > 5.0 or len(words) > 7):
+            cur_line_words = []
+            cur_start = None
+            prev_end = float(s["start"])
+            for w in words:
+                w_text = w.get("word", "").strip()
+                if not w_text:
+                    continue
+                w_start = round(float(w.get("start", prev_end)), 2)
+                w_end = round(float(w.get("end", w_start)), 2)
+                if cur_start is None:
+                    cur_start = w_start
+                gap = w_start - prev_end
+                cur_line_words.append(w_text)
+                prev_end = w_end
+
+                is_punct = any(w_text.endswith(p) for p in (".", "?", "!", "|", "\n"))
+                is_comma = (w_text.endswith(",") or w_text.endswith("，")) and len(" ".join(cur_line_words)) >= 20
+                is_gap = gap >= 0.85 and len(cur_line_words) > 1
+                is_len = len(" ".join(cur_line_words)) >= 45
+
+                if is_punct or is_comma or is_gap or is_len:
+                    line_text = " ".join(cur_line_words).strip()
+                    if line_text:
+                        segments.append({"start": cur_start, "end": prev_end, "text": line_text})
+                    cur_line_words = []
+                    cur_start = None
+            if cur_line_words:
+                line_text = " ".join(cur_line_words).strip()
+                if line_text:
+                    segments.append({"start": cur_start if cur_start is not None else round(float(s["start"]), 2), "end": prev_end, "text": line_text})
+        else:
+            start = round(float(s["start"]), 2)
+            end = round(float(s["end"]), 2)
+            text = s["text"].strip()
+            if text:
+                segments.append({"start": start, "end": end, "text": text})
     plain_text = result.get("text", "").strip()
     if not plain_text and not segments:
         return {"error": "No vocals detected. The track may be instrumental or speech recognition failed on this audio."}
@@ -1505,7 +2137,7 @@ if __name__ == "__main__":
         print(json.dumps({"error": "Missing audio file path argument"}))
         sys.exit(1)
     audio_path = sys.argv[1]
-    model_name = sys.argv[2] if len(sys.argv) > 2 else "tiny"
+    model_name = sys.argv[2] if len(sys.argv) > 2 else "base"
     out_file = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] != "none" else None
     language = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] != "auto" else None
     try:
